@@ -328,7 +328,8 @@ class Backtester:
                 df = self.all_data[ticker]
                 df_up_to = df[df.index <= date]
                 if not df_up_to.empty:
-                    position.current_price = float(df_up_to['Close'].iloc[-1])
+                    # use numpy value to avoid pandas single-element Series float deprecation
+                    position.current_price = float(df_up_to['Close'].values[-1])
                     cost_basis = position.quantity * position.buy_price + position.buy_fees
                     position.pnl = (position.current_price * position.quantity) - cost_basis
                     position.pnl_pct = (position.pnl / cost_basis * 100) if cost_basis > 0 else 0

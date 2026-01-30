@@ -295,27 +295,35 @@ def fetch_fundamentals_safe(ticker: str) -> Dict[str, Optional[float]]:
 
 def build_snapshot(df: pd.DataFrame, fundamentals: Dict[str, Optional[float]]) -> IndicatorSnapshot:
     """Construit un `IndicatorSnapshot` à partir des derniers indicateurs calculés."""
-    last = df.iloc[-1]
-    # helper pour convertir proprement en float
-    def _f(x): return float(x) if not hasattr(x, "iloc") else float(x.iloc[0])
+    # Utiliser des accès scalaires sûrs via l'index de la dernière ligne
+    row_idx = df.index[-1]
+
+    def _get(col: str) -> Optional[float]:
+        try:
+            val = df.at[row_idx, col]
+            return float(val) if val is not None else None
+        except Exception:
+            return None
+
     snap = IndicatorSnapshot(
-        date=last.name,
-        close=_f(last['Close']),
-        sma20=_f(last['SMA20']),
-        sma50=_f(last['SMA50']),
-        sma200=_f(last['SMA200']),
-        rsi14=_f(last['RSI14']),
-        macd=_f(last['MACD']),
-        macd_signal=_f(last['MACD_signal']),
-        macd_hist=_f(last['MACD_hist']),
-        bb_mid=_f(last['BB_mid']),
-        bb_upper=_f(last['BB_upper']),
-        bb_lower=_f(last['BB_lower']),
-        atr14=_f(last['ATR14']),
-        vol=_f(last['Volume']),
-        vol_sma20=_f(last['VOL_SMA20']),
+        date=row_idx,
+        close=_get('Close'),
+        sma20=_get('SMA20'),
+        sma50=_get('SMA50'),
+        sma200=_get('SMA200'),
+        rsi14=_get('RSI14'),
+        macd=_get('MACD'),
+        macd_signal=_get('MACD_signal'),
+        macd_hist=_get('MACD_hist'),
+        bb_mid=_get('BB_mid'),
+        bb_upper=_get('BB_upper'),
+        bb_lower=_get('BB_lower'),
+        atr14=_get('ATR14'),
+        vol=_get('Volume'),
+        vol_sma20=_get('VOL_SMA20'),
         fundamentals=fundamentals
     )
+
     return snap
 
 
