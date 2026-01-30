@@ -295,13 +295,41 @@ def fetch_fundamentals_safe(ticker: str) -> Dict[str, Optional[float]]:
 
 def build_snapshot(df: pd.DataFrame, fundamentals: Dict[str, Optional[float]]) -> IndicatorSnapshot:
     """Construit un `IndicatorSnapshot` à partir des derniers indicateurs calculés."""
-    # Utiliser des accès scalaires sûrs via l'index de la dernière ligne
-    row_idx = df.index[-1]
+    # Trouver la DERNIÈRE LIGNE SANS NaN (tous les indicateurs valides)
+    df_valid = df.dropna()
+
+    if df_valid.empty:
+        # Si aucune ligne valide, retourner un snapshot vide
+        snap = IndicatorSnapshot(
+            date=None,
+            close=None,
+            sma20=None,
+            sma50=None,
+            sma200=None,
+            rsi14=None,
+            macd=None,
+            macd_signal=None,
+            macd_hist=None,
+            bb_mid=None,
+            bb_upper=None,
+            bb_lower=None,
+            atr14=None,
+            vol=None,
+            vol_sma20=None,
+            fundamentals=fundamentals
+        )
+        return snap
+
+    # Accéder à la dernière ligne comme un scalar
+    row_idx = df_valid.index[-1]
 
     def _get(col: str) -> Optional[float]:
         try:
-            val = df.at[row_idx, col]
-            return float(val) if val is not None else None
+            val = df_valid.loc[row_idx, col]
+            # Si c'est une Series (MultiIndex), prendre le premier élément
+            if isinstance(val, pd.Series):
+                val = val.iloc[0]
+            return float(val) if val is not None and pd.notna(val) else None
         except Exception:
             return None
 

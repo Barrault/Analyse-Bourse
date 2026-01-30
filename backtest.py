@@ -97,6 +97,24 @@ class Backtester:
                     progress=False
                 )
                 if df is not None and not df.empty:
+                    # Si les colonnes sont en MultiIndex (yfinance peut le faire),
+                    # essayer d'extraire le niveau contenant les noms réels
+                    if isinstance(df.columns, pd.MultiIndex) or getattr(df.columns, 'nlevels', 1) > 1:
+                        required_cols = ['Close', 'High', 'Low', 'Volume', 'Adj Close', 'Open']
+                        # Chercher un niveau contenant des noms connus (Close, High, ...)
+                        chosen = None
+                        for lvl in range(df.columns.nlevels):
+                            vals = df.columns.get_level_values(lvl)
+                            if any(v in vals for v in required_cols):
+                                chosen = vals
+                                break
+
+                        if chosen is not None:
+                            df.columns = chosen
+                        else:
+                            # Fallback: prendre le dernier niveau
+                            df.columns = df.columns.get_level_values(-1)
+
                     self.all_data[ticker] = df
                     if i % 10 == 0:
                         print(f"  ✓ {i}/{len(tickers)} actions téléchargées")
@@ -111,6 +129,30 @@ class Backtester:
             return None
 
         df = self.all_data[ticker].copy()
+
+        # Si le DataFrame a un MultiIndex (yfinance avec plusieurs tickers), aplatir
+        # Nettoyer le DataFrame: s'assurer que 'Close', 'High', 'Low', 'Volume' existent
+        # Si les colonnes sont en MultiIndex, essayer d'extraire le niveau contenant
+        # les noms réels (Close, High, ...), sinon prendre le dernier niveau.
+        if isinstance(df.columns, pd.MultiIndex) or getattr(df.columns, 'nlevels', 1) > 1:
+            required_cols = ['Close', 'High', 'Low', 'Volume', 'Adj Close', 'Open']
+            chosen = None
+            for lvl in range(df.columns.nlevels):
+                vals = df.columns.get_level_values(lvl)
+                if any(v in vals for v in required_cols):
+                    chosen = vals
+                    break
+
+            if chosen is not None:
+                df.columns = chosen
+            else:
+                df.columns = df.columns.get_level_values(-1)
+
+        # S'assurer que Close, High, Low, Volume existent
+        required_cols = ['Close', 'High', 'Low', 'Volume']
+        for col in required_cols:
+            if col not in df.columns:
+                return None
 
         df['SMA20'] = sma(df['Close'], 20)
         df['SMA50'] = sma(df['Close'], 50)
@@ -142,8 +184,24 @@ class Backtester:
         if df_up_to_date.empty:
             return None
 
+        # Debug: afficher ce qui se passe
+        if ticker == 'AC.PA' and str(date.date()) == '2024-07-01':
+            df_valid = df_up_to_date.dropna()
+            print(f"DEBUG {ticker} {date.date()}: total rows={len(df_up_to_date)}, valid rows after dropna={len(df_valid)}")
+            if not df_valid.empty:
+                last_row = df_valid.iloc[-1]
+                print(f"  Last valid: {last_row.name}, Close={last_row['Close']}, SMA200={last_row['SMA200']}")
+
         fundamentals = fetch_fundamentals_safe(ticker)
         snap = build_snapshot(df_up_to_date, fundamentals)
+
+        # Vérifier que tous les indicateurs essentiels sont valides
+        if snap.close is None or snap.sma200 is None:
+            # Debug: afficher pourquoi c'est rejeté (seulement pour les premiers cas)
+            if ticker == 'AC.PA':
+                print(f"DEBUG {ticker}: close={snap.close}, sma200={snap.sma200}, rows={len(df_up_to_date)}")
+            return None
+
         outcome = compute_score(snap)
 
         # Recalculer comme dans le code original
@@ -196,12 +254,24 @@ class Backtester:
 
         # 1. Analyser TOUTES les actions
         analyses = {}
+        scores_list = []
         for ticker in tickers:
             analysis = self.analyze_on_date(ticker, rebalance_date)
             if analysis:
                 analyses[ticker] = analysis
+                scores_list.append((analysis["company_name"], analysis["score"], analysis["recommendation"]))
 
         print(f"\n🔍 Analyses: {len(analyses)}/{len(tickers)} actions")
+
+        # Afficher les top 5 scores (positifs et négatifs)
+        if scores_list:
+            scores_sorted = sorted(scores_list, key=lambda x: x[1], reverse=True)
+            print(f"\n📊 Top 5 scores ACHAT:")
+            for name, score, rec in scores_sorted[:5]:
+                print(f"  {name:30s} | Score: {score:+6.2f} | {rec}")
+            print(f"\n📊 Top 5 scores VENTE:")
+            for name, score, rec in scores_sorted[-5:]:
+                print(f"  {name:30s} | Score: {score:+6.2f} | {rec}")
 
         # 2. Évaluer les positions actuelles
         sells = []
