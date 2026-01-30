@@ -328,7 +328,7 @@ class Backtester:
                 df = self.all_data[ticker]
                 df_up_to = df[df.index <= date]
                 if not df_up_to.empty:
-                    position.current_price = float(df_up_to.iloc[-1]['Close'])
+                    position.current_price = float(df_up_to['Close'].iloc[-1])
                     cost_basis = position.quantity * position.buy_price + position.buy_fees
                     position.pnl = (position.current_price * position.quantity) - cost_basis
                     position.pnl_pct = (position.pnl / cost_basis * 100) if cost_basis > 0 else 0
@@ -395,6 +395,8 @@ class Backtester:
             self.execute_rebalance(rebalance_date, tickers)
             self.snapshot_portfolio(rebalance_date)
             print(f"✓")
+
+    def print_summary(self):
         """Affiche un résumé des performances."""
         if not self.portfolio_history:
             print("Aucun historique de portefeuille")
