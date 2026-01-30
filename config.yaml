@@ -108,7 +108,7 @@ scoring:
 trading:
   # Portfolio
   initial_cash: 5000
-  min_order_amount: 500
+  min_order_amount: 100
   max_order_amount: 1000
 
   # Order Sizing Strategy
