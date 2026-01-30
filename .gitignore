@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Data & logs
+*.log
+backtest_output.log
+backtest_*.log
+*.csv
+*.db
+*.json
+backtest_results_*.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+cac40env/
+*.xlsx
+*.xls
+results.txt
