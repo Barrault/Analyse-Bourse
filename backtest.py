@@ -16,21 +16,28 @@ from cac40_analyzer import (
     IndicatorSnapshot, compute_score, fetch_fundamentals_safe,
     build_snapshot, prepare_indicators, NOMS_ENTREPRISES
 )
+from config_loader import config
 
 # ----------------------- Frais Bourse Direct ----------------------- #
 
 def calculate_fees(amount: float) -> float:
-    """Calcule les frais Bourse Direct pour un montant donné."""
-    if amount <= 500:
-        return 0.99
-    elif amount <= 1000:
-        return 1.90
-    elif amount <= 2000:
-        return 2.90
-    elif amount <= 4400:
-        return 3.80
-    else:
-        return amount * 0.0009
+    """Calcule les frais Bourse Direct pour un montant donné, selon la configuration."""
+    fee_structure = config.get('fees.structure')
+
+    for fee_tier in fee_structure:
+        max_amount = fee_tier.get('max_amount')
+
+        # Dernier tier avec max_amount = None
+        if max_amount is None:
+            percentage_fee = fee_tier.get('percentage_fee', 0.0009)
+            return amount * percentage_fee
+
+        # Tier avec montant maximum
+        if amount <= max_amount:
+            return fee_tier.get('fixed_fee', 0.99)
+
+    # Fallback: utiliser le dernier tier
+    return fee_structure[-1].get('fixed_fee', 0.99)
 
 # ----------------------- Portfolio & Trade Tracking ----------------------- #
 
@@ -75,10 +82,13 @@ class PortfolioSnapshot:
 class Backtester:
     """Simule les trades avec règles réalistes."""
 
-    def __init__(self, initial_cash: float = 5000, min_order_amount: float = 500):
-        self.initial_cash = initial_cash
-        self.cash = initial_cash
-        self.min_order_amount = min_order_amount
+    def __init__(self, initial_cash: Optional[float] = None, min_order_amount: Optional[float] = None):
+        # Charger depuis la configuration si non fourni
+        trading_params = config.get_section('trading')
+        self.initial_cash = initial_cash or trading_params['initial_cash']
+        self.min_order_amount = min_order_amount or trading_params['min_order_amount']
+
+        self.cash = self.initial_cash
         self.positions: Dict[str, Position] = {}
         self.trades: List[Trade] = []
         self.portfolio_history: List[PortfolioSnapshot] = []
@@ -391,9 +401,13 @@ class Backtester:
 
         self.portfolio_history.append(snapshot)
 
-    def run_backtest(self, start_date: str = "2024-07-01",
-                        end_date: str = "2026-12-31"):
+    def run_backtest(self, start_date: Optional[str] = None, end_date: Optional[str] = None):
         """Lance le backtest complet."""
+        # Charger depuis la configuration si non fourni
+        backtest_params = config.get_section('backtest')
+        start_date = start_date or backtest_params['start_date']
+        end_date = end_date or backtest_params['end_date']
+
         tickers = list(NOMS_ENTREPRISES.keys())
 
         print("\n" + "="*60)

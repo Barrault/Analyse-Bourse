@@ -1,0 +1,177 @@
+# Configuration complète du CAC40 Analyzer
+# Modifiez ces paramètres pour calibrer le système sans toucher au code
+
+# ============================== INDICATOR PARAMETERS ==============================
+indicators:
+  # Simple Moving Averages
+  sma:
+    short_window: 20
+    mid_window: 50
+    long_window: 200
+
+  # RSI (Relative Strength Index)
+  rsi:
+    window: 14
+    overbought_threshold: 70
+    oversold_threshold: 30
+    neutral_lower: 50
+    neutral_upper: 70
+
+  # MACD (Moving Average Convergence Divergence)
+  macd:
+    fast_window: 12
+    slow_window: 26
+    signal_window: 9
+
+  # Bollinger Bands
+  bollinger:
+    window: 20
+    num_std: 2.0
+
+  # ATR (Average True Range)
+  atr:
+    window: 14
+
+  # Volume SMA
+  volume:
+    sma_window: 20
+
+# ============================== SCORING WEIGHTS ==============================
+scoring:
+  # Trend Analysis Weights
+  trends:
+    long_term: 2.0        # Close > SMA200
+    mid_term: 1.2         # SMA50 > SMA200
+    short_term: 1.0       # SMA20 > SMA50
+
+  # Momentum Weights
+  momentum:
+    macd_line: 1.8        # MACD > 0
+    macd_histogram: 1.5   # MACD Histogram > 0
+
+  # RSI Weights
+  rsi:
+    neutral_zone: 0.5     # RSI between 50-70
+    oversold: 1.0         # RSI < 30
+    overbought: -1.5      # RSI > 70
+
+  # Bollinger Bands Weights
+  bollinger:
+    above_upper: 0.8      # Price > Upper Band
+    below_lower: -1.5     # Price < Lower Band
+
+  # Volume Weights
+  volume:
+    high_volume: 0.5      # Volume > SMA20
+    low_volume: -0.5      # Volume < SMA20
+
+  # Volatility Weights (ATR-based)
+  volatility:
+    low_volatility: 0.8   # ATR/Close < 0.04
+    high_volatility: -0.8 # ATR/Close >= 0.04
+
+  # Fundamental Analysis Weights
+  fundamentals:
+    # PE Ratio Analysis
+    pe:
+      very_low: -0.5      # PE < 8
+      low: 0.8            # 8 <= PE <= 14 (with bullish trend)
+      low_weak: -0.5      # 8 <= PE <= 14 (weak trend)
+      moderate: -0.5      # 14 < PE <= 22
+      high: -2.0          # PE > 22
+
+    # Price-to-Book Analysis
+    pb:
+      very_low_good_roe: 0.5    # P/B < 1 with ROE > 10%
+      very_low_bad_roe: -1.0    # P/B < 1 with low ROE
+      moderate_good_roe: 0.5    # 1 <= P/B <= 2.5 with ROE >= 12%
+      moderate_bad_roe: -0.5    # 1 <= P/B <= 2.5 with low ROE
+      high: -1.5                # P/B > 2.5
+
+    # Cross PE/PB Sanity Checks
+    expensive_both: -2.0   # PE > 20 AND P/B > 3
+    cheap_with_growth: 0.5 # PE < 12 AND P/B < 1.2 (with bullish trend)
+
+    # Dividend Yield
+    dividend:
+      high_yield: 1.0      # Dividend Yield >= 5%
+      medium_yield: 0.5    # 2% <= DY < 5%
+      no_dividend: -0.5    # DY == 0
+
+  # Thresholds for Recommendations
+  thresholds:
+    buy: 5                 # Score >= this for ACHAT
+    sell: -3               # Score <= this for VENTE
+    # Everything between buy and sell is NEUTRE
+
+# ============================== TRADING PARAMETERS ==============================
+trading:
+  # Portfolio
+  initial_cash: 5000
+  min_order_amount: 500
+  max_order_amount: 1000
+
+  # Order Sizing Strategy
+  order_sizing:
+    type: "fixed_percentage"  # Options: "fixed_percentage", "kelly", "equal_weight"
+    percentage: 0.25          # 25% of available cash per order
+    margin_buffer: 100        # Keep this amount as safety buffer
+
+  # Rebalancing
+  rebalance:
+    frequency: "month"  # Options: "month", "week", "quarter"
+    day_of_month: 1     # 1st day of month, adjusted to first trading day
+
+# ============================== FEES (Bourse Direct) ==============================
+fees:
+  structure:
+    - max_amount: 500
+      fixed_fee: 0.99
+    - max_amount: 1000
+      fixed_fee: 1.90
+    - max_amount: 2000
+      fixed_fee: 2.90
+    - max_amount: 4400
+      fixed_fee: 3.80
+    - max_amount: null        # All amounts above 4400
+      percentage_fee: 0.0009  # 0.09% of amount
+
+# ============================== BACKTEST PARAMETERS ==============================
+backtest:
+  # Date Range
+  start_date: "2024-01-01"
+  end_date: "2026-12-31"
+
+  # Data Download
+  data:
+    period: "5y"           # Historical period to download
+    interval: "1d"         # Daily data
+    auto_adjust: true      # Automatically adjust OHLC
+
+# ============================== OUTPUT & LOGGING ==============================
+output:
+  verbose: true
+  debug_tickers: ["AC.PA"]  # Print debug info for these tickers
+  save_results: true
+  results_dir: "results"
+  results_filename: "backtest_results_2024_2026.json"
+
+# ============================== CALIBRATION HINTS ==============================
+# Use these notes when tweaking parameters:
+#
+# 1. SCORING: Increase weights if you want more aggressive signals
+#    - Decrease 'buy' threshold (e.g., 3 instead of 5) for more BUY signals
+#    - Increase 'sell' threshold (e.g., -5) for fewer SELL signals
+#
+# 2. FUNDAMENTALS: PE and P/B heavily influence quality
+#    - Higher PE penalties = fewer overvalued stocks
+#    - Higher P/B penalties = prefer asset-light businesses
+#
+# 3. TRENDS vs MOMENTUM: Balance trend-following vs mean-reversion
+#    - Increase trend weights for systematic buying on strength
+#    - Increase RSI/overbought penalties for contrarian signals
+#
+# 4. ORDER SIZING: Larger orders pay lower fees but higher risk
+#    - Typical: 0.25 = 25% per order, allows ~4 concurrent positions
+#    - Conservative: 0.15 = 15%, allows ~6 positions
+#    - Aggressive: 0.50 = 50%, allows ~2 positions max

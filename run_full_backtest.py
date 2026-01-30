@@ -7,20 +7,32 @@ import io
 import json
 from datetime import datetime
 from backtest import Backtester
+from config_loader import config
 
 if __name__ == "__main__":
     if sys.stdout.encoding.lower() != 'utf-8':
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
     print("="*70)
-    print("🚀 FULL BACKTEST 2024-2026")
+    print("🚀 FULL BACKTEST")
     print("="*70)
     print(f"Start time: {datetime.now().isoformat()}")
-    print("Running full 2-year backtest with monthly rebalancing...")
+
+    # Charger les paramètres depuis la configuration
+    backtest_params = config.get_section('backtest')
+    trading_params = config.get_section('trading')
+
+    start_date = backtest_params['start_date']
+    end_date = backtest_params['end_date']
+    initial_cash = trading_params['initial_cash']
+    min_order_amount = trading_params['min_order_amount']
+
+    print(f"Running backtest from {start_date} to {end_date}")
+    print(f"Initial capital: {initial_cash}€, Min order: {min_order_amount}€")
     print("(This may take 30-45 minutes)\n")
 
-    backtester = Backtester(initial_cash=5000, min_order_amount=500)
-    backtester.run_backtest(start_date="2024-01-01", end_date="2026-12-31")
+    backtester = Backtester(initial_cash=initial_cash, min_order_amount=min_order_amount)
+    backtester.run_backtest(start_date=start_date, end_date=end_date)
 
     print("\n" + "="*70)
     print("✅ BACKTEST COMPLETE")
@@ -30,8 +42,12 @@ if __name__ == "__main__":
     print(f"\nEnd time: {datetime.now().isoformat()}")
 
     # Sauvegarder les résultats en JSON
+    output_params = config.get_section('output')
+    results_dir = output_params['results_dir']
+    results_filename = output_params['results_filename']
+
     results = {
-        "period": "2024-01-01 to 2026-12-31",
+        "period": f"{start_date} to {end_date}",
         "initial_cash": backtester.initial_cash,
         "final_cash": backtester.portfolio_history[-1].cash if backtester.portfolio_history else 0,
         "total_trades": len(backtester.trades),
@@ -44,7 +60,7 @@ if __name__ == "__main__":
         "open_positions": len(backtester.portfolio_history[-1].positions) if backtester.portfolio_history else 0,
     }
 
-    with open("backtest_results_2024_2026.json", "w") as f:
+    with open(f"{results_dir}/{results_filename}", "w") as f:
         json.dump(results, f, indent=2)
 
-    print(f"\n📁 Results saved to backtest_results_2024_2026.json")
+    print(f"\n📁 Results saved to {results_dir}/{results_filename}")
