@@ -65,7 +65,54 @@ def atr(high: pd.Series, low: pd.Series, close: pd.Series, window: int = 14) -> 
     """Calcule l’Average True Range (ATR), mesure de volatilité."""
     tr = true_range(high, low, close)
     return tr.ewm(alpha=1/window, adjust=False).mean()
+# ----------------------- Indicator Preparation ----------------------- #
 
+def prepare_indicators(df: pd.DataFrame) -> Optional[pd.DataFrame]:
+    """Prépare les indicateurs techniques pour un DataFrame."""
+    if df is None or df.empty:
+        return None
+
+    df = df.copy()
+
+    # Si le DataFrame a un MultiIndex (yfinance avec plusieurs tickers), aplatir
+    if isinstance(df.columns, pd.MultiIndex) or getattr(df.columns, 'nlevels', 1) > 1:
+        required_cols = ['Close', 'High', 'Low', 'Volume', 'Adj Close', 'Open']
+        chosen = None
+        for lvl in range(df.columns.nlevels):
+            vals = df.columns.get_level_values(lvl)
+            if any(v in vals for v in required_cols):
+                chosen = vals
+                break
+
+        if chosen is not None:
+            df.columns = chosen
+        else:
+            df.columns = df.columns.get_level_values(-1)
+
+    # S'assurer que Close, High, Low, Volume existent
+    required_cols = ['Close', 'High', 'Low', 'Volume']
+    for col in required_cols:
+        if col not in df.columns:
+            return None
+
+    df['SMA20'] = sma(df['Close'], 20)
+    df['SMA50'] = sma(df['Close'], 50)
+    df['SMA200'] = sma(df['Close'], 200)
+    df['RSI14'] = rsi(df['Close'], 14)
+
+    macd_line, signal_line, hist = macd(df['Close'])
+    df['MACD'] = macd_line
+    df['MACD_signal'] = signal_line
+    df['MACD_hist'] = hist
+
+    bb_mid, bb_upper, bb_lower = bollinger(df['Close'], 20, 2.0)
+    df['BB_mid'] = bb_mid
+    df['BB_upper'] = bb_upper
+    df['BB_lower'] = bb_lower
+    df['ATR14'] = atr(df['High'], df['Low'], df['Close'], 14)
+    df['VOL_SMA20'] = sma(df['Volume'], 20)
+
+    return df.dropna()
 # ----------------------- Scoring & Recommendation ----------------------- #
 
 @dataclass

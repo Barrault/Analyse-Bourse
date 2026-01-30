@@ -14,7 +14,7 @@ import io
 from cac40_analyzer import (
     sma, ema, rsi, macd, bollinger, atr, true_range,
     IndicatorSnapshot, compute_score, fetch_fundamentals_safe,
-    build_snapshot, NOMS_ENTREPRISES
+    build_snapshot, prepare_indicators, NOMS_ENTREPRISES
 )
 
 # ----------------------- Frais Bourse Direct ----------------------- #
@@ -123,59 +123,12 @@ class Backtester:
 
         print(f"✓ {len(self.all_data)} actions chargées")
 
-    def prepare_indicators(self, ticker: str) -> Optional[pd.DataFrame]:
-        """Prépare les indicateurs pour un ticker."""
+    def analyze_on_date(self, ticker: str, date: pd.Timestamp) -> Optional[Dict]:
+        """Analyse un ticker à une date spécifique."""
         if ticker not in self.all_data:
             return None
 
-        df = self.all_data[ticker].copy()
-
-        # Si le DataFrame a un MultiIndex (yfinance avec plusieurs tickers), aplatir
-        # Nettoyer le DataFrame: s'assurer que 'Close', 'High', 'Low', 'Volume' existent
-        # Si les colonnes sont en MultiIndex, essayer d'extraire le niveau contenant
-        # les noms réels (Close, High, ...), sinon prendre le dernier niveau.
-        if isinstance(df.columns, pd.MultiIndex) or getattr(df.columns, 'nlevels', 1) > 1:
-            required_cols = ['Close', 'High', 'Low', 'Volume', 'Adj Close', 'Open']
-            chosen = None
-            for lvl in range(df.columns.nlevels):
-                vals = df.columns.get_level_values(lvl)
-                if any(v in vals for v in required_cols):
-                    chosen = vals
-                    break
-
-            if chosen is not None:
-                df.columns = chosen
-            else:
-                df.columns = df.columns.get_level_values(-1)
-
-        # S'assurer que Close, High, Low, Volume existent
-        required_cols = ['Close', 'High', 'Low', 'Volume']
-        for col in required_cols:
-            if col not in df.columns:
-                return None
-
-        df['SMA20'] = sma(df['Close'], 20)
-        df['SMA50'] = sma(df['Close'], 50)
-        df['SMA200'] = sma(df['Close'], 200)
-        df['RSI14'] = rsi(df['Close'], 14)
-
-        macd_line, signal_line, hist = macd(df['Close'])
-        df['MACD'] = macd_line
-        df['MACD_signal'] = signal_line
-        df['MACD_hist'] = hist
-
-        bb_mid, bb_upper, bb_lower = bollinger(df['Close'], 20, 2.0)
-        df['BB_mid'] = bb_mid
-        df['BB_upper'] = bb_upper
-        df['BB_lower'] = bb_lower
-        df['ATR14'] = atr(df['High'], df['Low'], df['Close'], 14)
-        df['VOL_SMA20'] = sma(df['Volume'], 20)
-
-        return df.dropna()
-
-    def analyze_on_date(self, ticker: str, date: pd.Timestamp) -> Optional[Dict]:
-        """Analyse un ticker à une date spécifique."""
-        df = self.prepare_indicators(ticker)
+        df = prepare_indicators(self.all_data[ticker])
         if df is None or df.empty:
             return None
 
