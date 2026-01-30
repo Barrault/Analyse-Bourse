@@ -204,9 +204,9 @@ class Backtester:
 
         outcome = compute_score(snap)
 
-        # Recalculer comme dans le code original
+        # Utiliser les MÊMES seuils que cac40_analyzer.py
         total_score = outcome["score"]
-        if total_score >= 3:
+        if total_score >= 5:
             outcome["recommendation"] = "ACHAT"
         elif total_score <= -3:
             outcome["recommendation"] = "VENTE"
