@@ -319,23 +319,9 @@ def build_snapshot(df: pd.DataFrame, fundamentals: Dict[str, Optional[float]]) -
     return snap
 
 
-# ----------------------- Main Routine ----------------------- #
-# Point d’entrée : analyse toutes les valeurs du CAC40, calcule les indicateurs,
-# affiche les recommandations et met à jour les fichiers Excel.
+# ----------------------- Tickers CAC40 et noms ----------------------- #
 
-def main():
-    """Lance l'analyse complète du CAC40 avec suivi console et simulation de trades."""
-    # Forcer UTF-8 sur Windows
-    if sys.stdout.encoding.lower() != 'utf-8':
-        import io
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-
-    parser = argparse.ArgumentParser(description="Analyse du CAC40 et recommandation stricte")
-    parser.add_argument('--period', type=str, default='5y')
-    parser.add_argument('--interval', type=str, default='1d')
-    args = parser.parse_args()
-
-    NOMS_ENTREPRISES = {
+NOMS_ENTREPRISES = {
         'AC.PA': 'Accor',
         'ADP.PA': 'Aéroports de Paris',
         'AF.PA': 'Air France-KLM',
@@ -429,7 +415,24 @@ def main():
         'DG.PA': 'Vinci',
         'VIV.PA': 'Vivendi',
         'WLN.PA': 'Worldline'
-    }
+}
+
+
+# ----------------------- Main Routine ----------------------- #
+# Point d'entrée : analyse toutes les valeurs du CAC40, calcule les indicateurs,
+# affiche les recommandations et met à jour les fichiers Excel.
+
+def main():
+    """Lance l'analyse complète du CAC40 avec suivi console et simulation de trades."""
+    # Forcer UTF-8 sur Windows
+    if sys.stdout.encoding.lower() != 'utf-8':
+        import io
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+
+    parser = argparse.ArgumentParser(description="Analyse du CAC40 et recommandation stricte")
+    parser.add_argument('--period', type=str, default='5y')
+    parser.add_argument('--interval', type=str, default='1d')
+    args = parser.parse_args()
 
     cac40_tickers = list(NOMS_ENTREPRISES.keys())
     results = []
