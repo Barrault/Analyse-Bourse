@@ -101,23 +101,23 @@ scoring:
 
   # Thresholds for Recommendations
   thresholds:
-    buy: 3                 # Score >= this for ACHAT (reduced from 5 for more signals)
-    sell: 0                # Score <= this for VENTE (increased from -3 for earlier exits)
+    buy: 4                 # Score >= this for ACHAT (stricter: fewer false signals)
+    sell: -2               # Score <= this for VENTE (stronger signal to exit early)
     # Everything between buy and sell is NEUTRE
 
 # ============================== TRADING PARAMETERS ==============================
 trading:
   # Portfolio
-  initial_cash: 5000
-  min_order_amount: 100
+  initial_cash: 10000
+  min_order_amount: 150    # Raised from 100 to reduce small, fee-heavy orders
   max_order_amount: 1000
 
   # Order Sizing Strategy
   order_sizing:
     type: "fixed_percentage"  # Options: "fixed_percentage", "kelly", "equal_weight"
-    percentage: 0.33          # 33% of available cash per order (increased from 0.25)
-    max_order_amount: 1000    # Maximum per order
-    margin_buffer: 100        # Keep this amount as safety buffer
+    percentage: 0.20          # 20% of available cash per order (reduced from 0.33 for diversification)
+    max_order_amount: 800     # Maximum per order (reduced from 1000)
+    margin_buffer: 200        # Keep this amount as safety buffer (increased from 100)
 
   # Rebalancing
   rebalance:
