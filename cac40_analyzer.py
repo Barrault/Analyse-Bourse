@@ -160,42 +160,42 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
     # Long-term trend: Close > SMA200
     if s.close > s.sma200:
         score += weights['trends']['long_term']
-        reasons.append("+ Tendance long terme : le prix monte depuis plusieurs mois, le marché est confiant.")
+        reasons.append("+ Tendance long terme : Le prix de l'action a augmenté ces derniers mois, montrant que les investisseurs sont confiants.")
     else:
         score -= weights['trends']['long_term']
-        reasons.append("- Tendance long terme : le prix baisse depuis plusieurs mois, le marché est moins confiant.")
+        reasons.append("- Tendance long terme : Le prix de l'action a baissé ces derniers mois, montrant que les investisseurs sont moins confiants.")
 
     # Mid-term trend: SMA50 > SMA200
     if s.sma50 > s.sma200:
         score += weights['trends']['mid_term']
-        reasons.append("+ Tendance moyen terme : le prix est en hausse depuis plusieurs semaines.")
+        reasons.append("+ Tendance moyen terme : Le prix de l'action a augmenté ces dernières semaines.")
     else:
         score -= weights['trends']['mid_term']
-        reasons.append("- Tendance moyen terme : le prix stagne ou baisse depuis plusieurs semaines")
+        reasons.append("- Tendance moyen terme : Le prix de l'action stagne ou baisse ces dernières semaines.")
 
     # Short-term trend: SMA20 > SMA50
     if s.sma20 > s.sma50:
         score += weights['trends']['short_term']
-        reasons.append("+ Tendance court terme : le prix monte depuis quelques jours, signe d'élan récent.")
+        reasons.append("+ Tendance court terme : Le prix de l'action a augmenté ces derniers jours, montrant un élan récent.")
     else:
         score -= weights['trends']['short_term']
-        reasons.append("- Tendance court terme : le prix baisse ou stagne depuis quelques jours.")
+        reasons.append("- Tendance court terme : Le prix de l'action baisse ou stagne ces derniers jours.")
 
     # Momentum: MACD > 0
     if s.macd > 0:
         score += weights['momentum']['macd_line']
-        reasons.append("+ Momentum : le prix continue de monter récemment, les acheteurs sont actifs.")
+        reasons.append("+ Momentum : Le prix de l'action continue de monter récemment, les acheteurs sont actifs.")
     else:
         score -= weights['momentum']['macd_line']
-        reasons.append("- Momentum : le prix pourrait ralentir ou baisser, prudence.")
+        reasons.append("- Momentum : Le prix de l'action pourrait ralentir ou baisser, prudence.")
 
     # MACD Histogram > 0
     if s.macd_hist > 0:
         score += weights['momentum']['macd_histogram']
-        reasons.append("+ Accélération : le mouvement haussier s'intensifie, signe d'intérêt fort.")
+        reasons.append("+ Accélération : Le mouvement haussier s'accélère, montrant un fort intérêt.")
     else:
         score -= weights['momentum']['macd_histogram']
-        reasons.append("- Accélération : le mouvement haussier ralentit ou le prix descend.")
+        reasons.append("- Accélération : Le mouvement haussier ralentit ou le prix baisse.")
 
     # RSI Analysis
     neutral_lower = config.get('indicators.rsi.neutral_lower')
@@ -205,41 +205,41 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
 
     if neutral_lower <= s.rsi14 <= neutral_upper:
         score += weights['rsi']['neutral_zone']
-        reasons.append("* RSI normal : le prix est équilibré, ni trop acheté ni trop vendu")
+        reasons.append("* RSI normal : Le prix est équilibré, ni trop acheté ni trop vendu.")
     elif s.rsi14 < oversold:
         score += weights['rsi']['oversold']
-        reasons.append("* RSI bas : le prix a beaucoup baissé, possibilité de rebond.")
+        reasons.append("* RSI bas : Le prix a beaucoup baissé, possibilité de rebond.")
     elif s.rsi14 > overbought:
         score -= weights['rsi']['overbought']
-        reasons.append("- RSI haut : le prix a beaucoup monté, risque de correction")
+        reasons.append("- RSI haut : Le prix a beaucoup monté, risque de correction.")
 
     # Bollinger Bands
     if s.close > s.bb_upper:
         score += weights['bollinger']['above_upper']
-        reasons.append("+ Prix élevé récemment : le prix monte plus que d'habitude, beaucoup d'intérêt des investisseurs.")
+        reasons.append("+ Prix élevé récemment : Le prix monte plus que d'habitude, beaucoup d'intérêt des investisseurs.")
     elif s.close < s.bb_lower:
         score -= weights['bollinger']['below_lower']
-        reasons.append("- Prix bas récemment : le prix descend plus que d'habitude, possible désintérêt ou ventes fortes.")
+        reasons.append("- Prix bas récemment : Le prix descend plus que d'habitude, possible manque d'intérêt ou ventes fortes.")
     else:
-        reasons.append("* Prix normal : le prix évolue dans sa zone habituelle.")
+        reasons.append("* Prix normal : Le prix évolue dans sa zone habituelle.")
 
     # Volume
     if s.vol is not None and s.vol_sma20 is not None:
         if s.vol > s.vol_sma20:
             score += weights['volume']['high_volume']
-            reasons.append("+ Volume élevé : beaucoup d'achats et ventes, le mouvement est soutenu.")
+            reasons.append("+ Volume élevé : Beaucoup d'achats et ventes, le mouvement est soutenu.")
         else:
             score -= weights['volume']['low_volume']
-            reasons.append("* Volume faible : peu d'investisseurs bougent, le prix stagne")
+            reasons.append("* Volume faible : Peu d'investisseurs bougent, le prix stagne.")
 
     # Volatility (ATR-based)
     volatility_threshold = config.get('indicators.volatility.threshold', 0.04)
     if s.atr14 / s.close < volatility_threshold:
         score += weights['volatility']['low_volatility']
-        reasons.append("+ Volatilité faible : le prix varie peu, risque limité.")
+        reasons.append("+ Volatilité faible : Le prix varie peu, risque limité.")
     else:
         score -= weights['volatility']['high_volatility']
-        reasons.append("* Volatilité élevée : le prix peut beaucoup bouger, prudence.")
+        reasons.append("* Volatilité élevée : Le prix peut beaucoup bouger, prudence.")
 
     # ----------------------- Fundamentals (strict & punitive) ----------------------- #
     pe = s.fundamentals.get("trailingPE")
@@ -255,17 +255,17 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
     if pe is not None:
         if pe < 8:
             score -= weights['fundamentals']['pe']['very_low']
-            reasons.append(f"- PE très bas (PE={pe:.1f}) : possible value trap.")
+            reasons.append(f"- PE très bas (PE={pe:.1f}) : Le PE montre combien vous payez pour chaque euro de profit. Ici, peut-être trop bon marché, piège possible.")
         elif 8 <= pe <= 14:
             if s.close > s.sma200 and s.macd > 0:
                 score += weights['fundamentals']['pe']['low']
-                reasons.append(f"+ PE raisonnable et marché haussier (PE={pe:.1f}).")
+                reasons.append(f"+ PE raisonnable avec marché haussier (PE={pe:.1f}).")
             else:
                 score -= weights['fundamentals']['pe']['low_weak']
                 reasons.append(f"- PE correct mais dynamique faible (PE={pe:.1f}).")
         elif 14 < pe <= 22:
             score -= weights['fundamentals']['pe']['moderate']
-            reasons.append(f"- PE déjà exigeant sans forte croissance visible (PE={pe:.1f}).")
+            reasons.append(f"- PE déjà exigeant sans forte croissance (PE={pe:.1f}).")
         elif pe > 22:
             score -= weights['fundamentals']['pe']['high']
             reasons.append(f"-- PE élevé et risque de surévaluation (PE={pe:.1f}).")
@@ -275,7 +275,7 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
         if pb < 1:
             if roe is not None and roe > 10:
                 score += weights['fundamentals']['pb']['very_low_good_roe']
-                reasons.append(f"+ P/B décoté avec ROE correct (P/B={pb:.1f}, ROE≈{roe:.1f}%).")
+                reasons.append(f"+ P/B sous-évalué avec bon ROE (P/B={pb:.1f}, ROE≈{roe:.1f}%). Le P/B compare le prix aux actifs de l'entreprise.")
             else:
                 score -= weights['fundamentals']['pb']['very_low_bad_roe']
                 reasons.append(f"- P/B bas mais rentabilité faible (P/B={pb:.1f}).")
@@ -288,13 +288,13 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
                 reasons.append(f"- P/B correct mais ROE insuffisant (P/B={pb:.1f}).")
         elif pb > 2.5:
             score -= weights['fundamentals']['pb']['high']
-            reasons.append(f"- P/B élevé : forte prime sur les actifs (P/B={pb:.1f}).")
+            reasons.append(f"- P/B élevé : Prime sur les actifs (P/B={pb:.1f}).")
 
     # --- Cross PE & PB (sanity check) ---
     if pe is not None and pb is not None:
         if pe > 20 and pb > 3:
             score -= weights['fundamentals']['expensive_both']
-            reasons.append("-- Double surévaluation PE + P/B : risque asymétrique.")
+            reasons.append("-- Double surévaluation PE + P/B : Risque asymétrique.")
         if pe < 12 and pb < 1.2 and s.close > s.sma200:
             score += weights['fundamentals']['cheap_with_growth']
             reasons.append("+ Décote cohérente confirmée par le marché.")
@@ -303,12 +303,12 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
     if dy is not None:
         if dy >= 5:
             score += weights['fundamentals']['dividend']['high_yield']
-            reasons.append(f"+ Dividende élevé et défensif ({dy:.1f}%).")
+            reasons.append(f"+ Dividende élevé et défensif ({dy:.1f}%). Le dividende est l'argent versé aux actionnaires.")
         elif 2 <= dy < 5:
             reasons.append(f"* Dividende correct mais non protecteur ({dy:.1f}%).")
         elif dy == 0:
             score -= weights['fundamentals']['dividend']['no_dividend']
-            reasons.append("- Aucun dividende : aucune protection en cas de baisse.")
+            reasons.append("- Aucun dividende : Aucune protection en cas de baisse.")
 
     # Recommendation - using thresholds from config
     thresholds = config.get('scoring.thresholds')
@@ -321,20 +321,15 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
 
     confidence = min(max(abs(score)/10, 0), 1.0)
 
+    # Suggested amount based on confidence (example: €1000 max)
+    suggested_amount = round(confidence * 1000, 2)
+
     # Retourne un dictionnaire avec score, recommandation, confiance et explications
     return {
         "score": score,
         "recommendation": rec,
         "confidence": round(confidence, 2),
-        "reasons": reasons
-    }
-
-    # Retourne un dictionnaire avec score, recommandation, confiance et explications
-
-    return {
-        "score": score,
-        "recommendation": rec,
-        "confidence": round(confidence, 2),
+        "suggested_amount": suggested_amount,
         "reasons": reasons
     }
 
@@ -580,13 +575,15 @@ def main():
 
         # Recalculer recommendation et confidence après score macro
         total_score = outcome["score"]
-        if total_score >= 3:
+        thresholds = config.get('scoring.thresholds')
+        if total_score >= thresholds['buy']:
             outcome["recommendation"] = "ACHAT"
-        elif total_score <= -3:
+        elif total_score <= thresholds['sell']:
             outcome["recommendation"] = "VENTE"
         else:
             outcome["recommendation"] = "NEUTRE"
         outcome["confidence"] = min(max(abs(total_score)/10, 0), 1.0)
+        outcome["suggested_amount"] = round(outcome["confidence"] * 1000, 2)
 
         # keep current price for initialization and trades
         current_prices[ticker] = snap.close
@@ -597,7 +594,7 @@ def main():
     results_sorted = sorted(results, key=lambda x: x[2]["confidence"], reverse=True)
 
     for (ticker, nom_entreprise, outcome, snap) in results_sorted:
-        print(f"\n{nom_entreprise}: {outcome['recommendation']} | {round(outcome['confidence'], 2)}")
+        print(f"\n{nom_entreprise}: {outcome['recommendation']} | Confiance: {round(outcome['confidence'], 2)} | Montant suggéré: €{outcome['suggested_amount']}")
         print("Principaux indicateurs:")
         for r in outcome['reasons']:
             print(f" {r}")
