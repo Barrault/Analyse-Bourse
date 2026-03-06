@@ -67,8 +67,9 @@ scoring:
 
   # Volatility Weights (ATR-based)
   volatility:
-    low_volatility: 0.8   # ATR/Close < 0.04
-    high_volatility: -0.8 # ATR/Close >= 0.04
+    threshold: 0.04       # ATR/Close threshold
+    low_volatility: 0.8   # ATR/Close < threshold
+    high_volatility: -0.8 # ATR/Close >= threshold
 
   # Fundamental Analysis Weights
   fundamentals:
@@ -100,8 +101,8 @@ scoring:
 
   # Thresholds for Recommendations
   thresholds:
-    buy: 5                 # Score >= this for ACHAT
-    sell: -3               # Score <= this for VENTE
+    buy: 3                 # Score >= this for ACHAT (reduced from 5 for more signals)
+    sell: 0                # Score <= this for VENTE (increased from -3 for earlier exits)
     # Everything between buy and sell is NEUTRE
 
 # ============================== TRADING PARAMETERS ==============================
@@ -114,7 +115,8 @@ trading:
   # Order Sizing Strategy
   order_sizing:
     type: "fixed_percentage"  # Options: "fixed_percentage", "kelly", "equal_weight"
-    percentage: 0.25          # 25% of available cash per order
+    percentage: 0.33          # 33% of available cash per order (increased from 0.25)
+    max_order_amount: 1000    # Maximum per order
     margin_buffer: 100        # Keep this amount as safety buffer
 
   # Rebalancing

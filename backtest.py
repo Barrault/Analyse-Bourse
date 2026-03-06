@@ -167,11 +167,15 @@ class Backtester:
 
         outcome = compute_score(snap)
 
-        # Utiliser les MÊMES seuils que cac40_analyzer.py
+        # Utiliser les seuils depuis la configuration
         total_score = outcome["score"]
-        if total_score >= 5:
+        thresholds = config.get_section('scoring')['thresholds']
+        buy_threshold = thresholds['buy']
+        sell_threshold = thresholds['sell']
+
+        if total_score >= buy_threshold:
             outcome["recommendation"] = "ACHAT"
-        elif total_score <= -3:
+        elif total_score <= sell_threshold:
             outcome["recommendation"] = "VENTE"
         else:
             outcome["recommendation"] = "NEUTRE"
@@ -304,11 +308,17 @@ class Backtester:
 
     def _execute_buy(self, ticker: str, analysis: Dict, date: pd.Timestamp):
         """Exécute un achat si possible."""
-        # Déterminer la taille de l'ordre
-        # Stratégie: prendre 20-25% du cash disponible, min 500€, max le cash
+        # Déterminer la taille de l'ordre depuis la configuration
+        trading_params = config.get_section('trading')
+        order_sizing = trading_params['order_sizing']
+        percentage = order_sizing['percentage']
+        max_order = order_sizing['max_order_amount']
+        margin_buffer = order_sizing['margin_buffer']
+
         order_amount = min(
-            max(self.cash * 0.25, self.min_order_amount),
-            self.cash - 100  # Garder 100€ de marge
+            max(self.cash * percentage, self.min_order_amount),
+            max_order,
+            self.cash - margin_buffer
         )
 
         if order_amount < self.min_order_amount:
@@ -502,6 +512,14 @@ if __name__ == "__main__":
     if sys.stdout.encoding.lower() != 'utf-8':
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
-    backtester = Backtester(initial_cash=5000, min_order_amount=500)
-    backtester.run_backtest(start_date="2024-01-01", end_date="2026-12-31")
+    # Charger depuis la configuration
+    trading_params = config.get_section('trading')
+    backtest_params = config.get_section('backtest')
+    initial_cash = trading_params['initial_cash']
+    min_order = trading_params['min_order_amount']
+    start = backtest_params['start_date']
+    end = backtest_params['end_date']
+
+    backtester = Backtester(initial_cash=initial_cash, min_order_amount=min_order)
+    backtester.run_backtest(start_date=start, end_date=end)
     backtester.print_summary()
