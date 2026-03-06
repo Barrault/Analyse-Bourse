@@ -255,55 +255,55 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
     if pe is not None:
         if pe < 8:
             score -= weights['fundamentals']['pe']['very_low']
-            reasons.append(f"- PE très bas (PE={pe:.1f}) : Le PE montre combien vous payez pour chaque euro de profit. Ici, peut-être trop bon marché, piège possible.")
+            reasons.append(f"- PE très bas (PE={pe:.1f}) : Le PE (Price/Earnings) montre combien vous payez pour chaque euro de profit annuel. Un PE très bas (< 8) peut signifier une opportunité ou un piège (entreprise en difficulté).")
         elif 8 <= pe <= 14:
             if s.close > s.sma200 and s.macd > 0:
                 score += weights['fundamentals']['pe']['low']
-                reasons.append(f"+ PE raisonnable avec marché haussier (PE={pe:.1f}).")
+                reasons.append(f"+ PE raisonnable (PE={pe:.1f}, c'est-à-dire {pe:.1f}€ dépensé par euro de profit) : Entre 8 et 14, c'est un bon rapport qualité/prix, surtout avec une tendance haussière.")
             else:
                 score -= weights['fundamentals']['pe']['low_weak']
-                reasons.append(f"- PE correct mais dynamique faible (PE={pe:.1f}).")
+                reasons.append(f"- PE correct (PE={pe:.1f}) mais la dynamique est faible - pas assez de raisons d'acheter.")
         elif 14 < pe <= 22:
             score -= weights['fundamentals']['pe']['moderate']
-            reasons.append(f"- PE déjà exigeant sans forte croissance (PE={pe:.1f}).")
+            reasons.append(f"- PE déjà exigeant (PE={pe:.1f}, Price/Earnings=prix/profit annuel) : Entre 14 et 22, vous payez davantage par euro de profit, sans forte croissance visible.")
         elif pe > 22:
             score -= weights['fundamentals']['pe']['high']
-            reasons.append(f"-- PE élevé et risque de surévaluation (PE={pe:.1f}).")
+            reasons.append(f"-- PE élevé (PE={pe:.1f}, vous payez {pe:.1f}€ pour chaque euro de profit) : Au-dessus de 22, c'est cher. Le prix devrait augmenter vite pour justifier cette valorisation.")
 
     # --- Price to Book analysis (croisé avec ROE implicite) ---
     if pb is not None:
         if pb < 1:
             if roe is not None and roe > 10:
                 score += weights['fundamentals']['pb']['very_low_good_roe']
-                reasons.append(f"+ P/B sous-évalué avec bon ROE (P/B={pb:.1f}, ROE≈{roe:.1f}%). Le P/B compare le prix aux actifs de l'entreprise.")
+                reasons.append(f"+ P/B sous-évalué (P/B={pb:.1f}) avec bon ROE (ROE≈{roe:.1f}%) : P/B compare le prix aux actifs de l'entreprise (terrain, machines, etc.). Un P/B < 1 signifie vous l'achetez moins cher que sa valeur en actifs. Le ROE (Return on Equity) mesure combien de profit l'entreprise fait avec son argent - ici > 10%, c'est bon !")
             else:
                 score -= weights['fundamentals']['pb']['very_low_bad_roe']
-                reasons.append(f"- P/B bas mais rentabilité faible (P/B={pb:.1f}).")
+                reasons.append(f"- P/B bas (P/B={pb:.1f}, Price/Book=prix/valeur des actifs) mais rentabilité faible : Peut-être bon marché pour une raison (mauvaise gestion).")
         elif 1 <= pb <= 2.5:
             if roe is not None and roe >= 12:
                 score += weights['fundamentals']['pb']['moderate_good_roe']
-                reasons.append(f"+ P/B raisonnable et bonne rentabilité (P/B={pb:.1f}).")
+                reasons.append(f"+ P/B normal (P/B={pb:.1f}, prix comparé à la valeur de l'entreprise) et bonne rentabilité (ROE≥12%, c'est-à-dire ≥12% de profit sur les fonds propres) : Prix et valeur en actifs sont équilibrés, l'entreprise génère de bons profits.")
             else:
                 score -= weights['fundamentals']['pb']['moderate_bad_roe']
-                reasons.append(f"- P/B correct mais ROE insuffisant (P/B={pb:.1f}).")
+                reasons.append(f"- P/B correct (P/B={pb:.1f}) mais rentabilité insuffisante (ROE faible) : L'entreprise ne tire pas assez de profit de ses actifs.")
         elif pb > 2.5:
             score -= weights['fundamentals']['pb']['high']
-            reasons.append(f"- P/B élevé : Prime sur les actifs (P/B={pb:.1f}).")
+            reasons.append(f"- P/B élevé (P/B={pb:.1f}, Price/Book, vous payez {pb:.1f}x la valeur en actifs) : Risqué sauf si forte croissance attendue.")
 
     # --- Cross PE & PB (sanity check) ---
     if pe is not None and pb is not None:
         if pe > 20 and pb > 3:
             score -= weights['fundamentals']['expensive_both']
-            reasons.append("-- Double surévaluation PE + P/B : Risque asymétrique.")
+            reasons.append(f"-- Double surévaluation : PE élevé (PE={pe:.1f}, cher par euro de profit) + P/B élevé (P/B={pb:.1f}, cher par rapport aux actifs). Risque très élevé.")
         if pe < 12 and pb < 1.2 and s.close > s.sma200:
             score += weights['fundamentals']['cheap_with_growth']
-            reasons.append("+ Décote cohérente confirmée par le marché.")
+            reasons.append(f"+ Décote cohérente confirmée : PE bas (PE={pe:.1f}) + P/B bas (P/B={pb:.1f}) + prix en hausse = l'action est bon marché ET la tendance confirme que c'est réellement une bonne affaire, pas un piège.")
 
     # --- Dividend (defensive bias) ---
     if dy is not None:
         if dy >= 5:
             score += weights['fundamentals']['dividend']['high_yield']
-            reasons.append(f"+ Dividende élevé et défensif ({dy:.1f}%). Le dividende est l'argent versé aux actionnaires.")
+            reasons.append(f"+ Dividende élevé et défensif ({dy:.1f}%).")
         elif 2 <= dy < 5:
             reasons.append(f"* Dividende correct mais non protecteur ({dy:.1f}%).")
         elif dy == 0:
