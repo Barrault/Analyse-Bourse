@@ -26,7 +26,7 @@ class ConfigLoader:
     @staticmethod
     def _load_config() -> Dict[str, Any]:
         """Charge le fichier config.yaml."""
-        config_path = Path(__file__).parent / "config.yaml"
+        config_path = Path(__file__).parent.parent / "config" / "config.yaml"
 
         if not config_path.exists():
             raise FileNotFoundError(f"Configuration file not found: {config_path}")

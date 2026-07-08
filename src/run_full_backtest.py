@@ -10,8 +10,9 @@ from backtest import Backtester
 from config_loader import config
 
 if __name__ == "__main__":
-    if sys.stdout.encoding.lower() != 'utf-8':
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    # Force UTF-8 for redirected logs
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
     print("="*70)
     print("🚀 FULL BACKTEST")

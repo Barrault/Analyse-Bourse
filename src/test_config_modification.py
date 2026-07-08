@@ -12,7 +12,7 @@ print("TEST: Modifier les paramètres et vérifier la prise en compte")
 print("=" * 60)
 
 # Charger la config originale
-config_path = Path("config.yaml")
+config_path = Path(__file__).parent.parent / "config" / "config.yaml"
 with open(config_path) as f:
     config_data = yaml.safe_load(f)
 

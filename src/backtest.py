@@ -167,20 +167,6 @@ class Backtester:
 
         outcome = compute_score(snap)
 
-        # Utiliser les seuils depuis la configuration
-        total_score = outcome["score"]
-        thresholds = config.get_section('scoring')['thresholds']
-        buy_threshold = thresholds['buy']
-        sell_threshold = thresholds['sell']
-
-        if total_score >= buy_threshold:
-            outcome["recommendation"] = "ACHAT"
-        elif total_score <= sell_threshold:
-            outcome["recommendation"] = "VENTE"
-        else:
-            outcome["recommendation"] = "NEUTRE"
-        outcome["confidence"] = min(max(abs(total_score) / 10, 0), 1.0)
-
         return {
             "ticker": ticker,
             "company_name": NOMS_ENTREPRISES.get(ticker, ticker),
@@ -188,7 +174,7 @@ class Backtester:
             "price": snap.close,
             "recommendation": outcome["recommendation"],
             "confidence": outcome["confidence"],
-            "score": total_score,
+            "score": outcome["score"],
             "snapshot": snap
         }
 
@@ -311,18 +297,39 @@ class Backtester:
         # Déterminer la taille de l'ordre depuis la configuration
         trading_params = config.get_section('trading')
         order_sizing = trading_params['order_sizing']
-        percentage = order_sizing['percentage']
         max_order = order_sizing['max_order_amount']
         margin_buffer = order_sizing['margin_buffer']
 
-        order_amount = min(
-            max(self.cash * percentage, self.min_order_amount),
-            max_order,
-            self.cash - margin_buffer
-        )
+        # Confidence-scaled sizing: confidence <= min threshold -> min spend,
+        # confidence >= max threshold -> max spend, and values in between scale linearly.
+        # Example: min=100€, max=1000€, confidence 0.2 -> 100€, confidence 1.0 -> 1000€.
+        confidence = float(analysis.get('confidence', 0.0)) if analysis is not None else 0.0
+        confidence = min(max(confidence, 0.0), 1.0)
 
-        if order_amount < self.min_order_amount:
-            print(f"  ✗ ACHAT {analysis['company_name']}: Pas assez de cash ({self.cash:.2f}€ < {self.min_order_amount}€)")
+        min_order = float(self.min_order_amount)
+        max_order = float(max_order)
+        if max_order < min_order:
+            max_order = min_order
+
+        min_confidence = float(order_sizing.get('min_confidence_for_min_spend', 0.2))
+        max_confidence = float(order_sizing.get('max_confidence_for_max_spend', 1.0))
+
+        if confidence <= min_confidence:
+            desired_amount = min_order
+        elif confidence >= max_confidence:
+            desired_amount = max_order
+        else:
+            span = max_confidence - min_confidence
+            scaled = (confidence - min_confidence) / span if span > 0 else 0.0
+            desired_amount = min_order + scaled * (max_order - min_order)
+
+        # Respect available cash and safety buffer
+        available_for_order = max(self.cash - margin_buffer, 0.0)
+        order_amount = min(desired_amount, max_order, available_for_order)
+
+        # If we can't reach the minimum order, skip the buy
+        if order_amount < min_order:
+            print(f"  ✗ ACHAT {analysis['company_name']}: Pas assez de cash ({self.cash:.2f}€ < {min_order:.2f}€)")
             return
 
         fees = calculate_fees(order_amount)
@@ -508,9 +515,9 @@ class Backtester:
                 print(f"  {pos.company_name:20s}: {pos.quantity:>6.2f} @ {pos.current_price:>7.2f}€ | PnL: {pos.pnl:>8.2f}€ ({pos.pnl_pct:>6.2f}%)")
 
 if __name__ == "__main__":
-    # Forcer UTF-8
-    if sys.stdout.encoding.lower() != 'utf-8':
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    # Forcer UTF-8 - réenvelopper stdout/stderr sans condition
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
     # Charger depuis la configuration
     trading_params = config.get_section('trading')

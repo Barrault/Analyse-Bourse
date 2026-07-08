@@ -156,6 +156,8 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
 
     score = 0
     reasons: List[str] = []
+    # Les poids peuvent être positifs ou négatifs : un poids négatif pénalise le score,
+    # un poids positif l'augmente.
 
     # Long-term trend: Close > SMA200
     if s.close > s.sma200:
@@ -210,7 +212,7 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
         score += weights['rsi']['oversold']
         reasons.append("* RSI bas : Le prix a beaucoup baissé, possibilité de rebond.")
     elif s.rsi14 > overbought:
-        score -= weights['rsi']['overbought']
+        score += weights['rsi']['overbought']
         reasons.append("- RSI haut : Le prix a beaucoup monté, risque de correction.")
 
     # Bollinger Bands
@@ -218,7 +220,7 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
         score += weights['bollinger']['above_upper']
         reasons.append("+ Prix élevé récemment : Le prix monte plus que d'habitude, beaucoup d'intérêt des investisseurs.")
     elif s.close < s.bb_lower:
-        score -= weights['bollinger']['below_lower']
+        score += weights['bollinger']['below_lower']
         reasons.append("- Prix bas récemment : Le prix descend plus que d'habitude, possible manque d'intérêt ou ventes fortes.")
     else:
         reasons.append("* Prix normal : Le prix évolue dans sa zone habituelle.")
@@ -229,7 +231,7 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
             score += weights['volume']['high_volume']
             reasons.append("+ Volume élevé : Beaucoup d'achats et ventes, le mouvement est soutenu.")
         else:
-            score -= weights['volume']['low_volume']
+            score += weights['volume']['low_volume']
             reasons.append("* Volume faible : Peu d'investisseurs bougent, le prix stagne.")
 
     # Volatility (ATR-based)
@@ -238,7 +240,7 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
         score += weights['volatility']['low_volatility']
         reasons.append("+ Volatilité faible : Le prix varie peu, risque limité.")
     else:
-        score -= weights['volatility']['high_volatility']
+        score += weights['volatility']['high_volatility']
         reasons.append("* Volatilité élevée : Le prix peut beaucoup bouger, prudence.")
 
     # ----------------------- Fundamentals (strict & punitive) ----------------------- #
@@ -254,21 +256,56 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
     # --- PE analysis (croisé avec tendance & momentum) ---
     if pe is not None:
         if pe < 8:
-            score -= weights['fundamentals']['pe']['very_low']
+            score += weights['fundamentals']['pe']['very_low']
             reasons.append(f"- PE très bas (PE={pe:.1f}) : Le PE (Price/Earnings) montre combien vous payez pour chaque euro de profit annuel. Un PE très bas (< 8) peut signifier une opportunité ou un piège (entreprise en difficulté).")
         elif 8 <= pe <= 14:
             if s.close > s.sma200 and s.macd > 0:
                 score += weights['fundamentals']['pe']['low']
                 reasons.append(f"+ PE raisonnable (PE={pe:.1f}, c'est-à-dire {pe:.1f}€ dépensé par euro de profit) : Entre 8 et 14, c'est un bon rapport qualité/prix, surtout avec une tendance haussière.")
             else:
-                score -= weights['fundamentals']['pe']['low_weak']
+                score += weights['fundamentals']['pe']['low_weak']
                 reasons.append(f"- PE correct (PE={pe:.1f}) mais la dynamique est faible - pas assez de raisons d'acheter.")
         elif 14 < pe <= 22:
-            score -= weights['fundamentals']['pe']['moderate']
+            score += weights['fundamentals']['pe']['moderate']
             reasons.append(f"- PE déjà exigeant (PE={pe:.1f}, Price/Earnings=prix/profit annuel) : Entre 14 et 22, vous payez davantage par euro de profit, sans forte croissance visible.")
         elif pe > 22:
-            score -= weights['fundamentals']['pe']['high']
+            score += weights['fundamentals']['pe']['high']
             reasons.append(f"-- PE élevé (PE={pe:.1f}, vous payez {pe:.1f}€ pour chaque euro de profit) : Au-dessus de 22, c'est cher. Le prix devrait augmenter vite pour justifier cette valorisation.")
+
+    # --- Continuous value scoring (helps separate similar technical setups) ---
+    fund_weights = weights['fundamentals']
+    pe_scale = config.get('scoring.fundamentals.pe_scale', 25.0)
+    pb_scale = config.get('scoring.fundamentals.pb_scale', 3.0)
+    roe_threshold = config.get('scoring.fundamentals.roe_threshold', 10.0)
+    pe_cont_weight = fund_weights.get('pe_continuous_weight', 1.4)
+    pb_cont_weight = fund_weights.get('pb_continuous_weight', 1.4)
+    roe_weight = fund_weights.get('roe_weight', 0.6)
+    value_conf_weight = fund_weights.get('value_confirmation', 1.5)
+
+    if pe is not None and pe > 0:
+        pe_score = max(0.0, 1.0 - (pe / pe_scale))
+        score += pe_cont_weight * pe_score
+        if pe_score > 0.6:
+            reasons.append(f"+ Valorisation PE favorable (PE={pe:.1f}) : le titre est relativement peu cher au regard de ses profits.")
+        elif pe_score < 0.3:
+            reasons.append(f"- Valorisation PE chère (PE={pe:.1f}) : le titre est relativement cher au regard de ses profits.")
+
+    if pb is not None:
+        pb_score = max(0.0, 1.0 - (pb / pb_scale))
+        score += pb_cont_weight * pb_score
+        if pb_score > 0.6:
+            reasons.append(f"+ Valorisation P/B favorable (P/B={pb:.1f}) : le titre est peu cher par rapport à ses actifs.")
+        elif pb_score < 0.3:
+            reasons.append(f"- Valorisation P/B chère (P/B={pb:.1f}) : le titre est cher par rapport à ses actifs.")
+
+    if roe is not None:
+        if roe >= 12:
+            score += roe_weight
+            reasons.append(f"+ ROE implicite solide (ROE≈{roe:.1f}%) : la société transforme bien ses fonds propres en profit.")
+        elif roe >= roe_threshold:
+            score += roe_weight * 0.5
+        else:
+            score -= roe_weight * 0.5
 
     # --- Price to Book analysis (croisé avec ROE implicite) ---
     if pb is not None:
@@ -277,26 +314,26 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
                 score += weights['fundamentals']['pb']['very_low_good_roe']
                 reasons.append(f"+ P/B sous-évalué (P/B={pb:.1f}) avec bon ROE (ROE≈{roe:.1f}%) : P/B compare le prix aux actifs de l'entreprise (terrain, machines, etc.). Un P/B < 1 signifie vous l'achetez moins cher que sa valeur en actifs. Le ROE (Return on Equity) mesure combien de profit l'entreprise fait avec son argent - ici > 10%, c'est bon !")
             else:
-                score -= weights['fundamentals']['pb']['very_low_bad_roe']
+                score += weights['fundamentals']['pb']['very_low_bad_roe']
                 reasons.append(f"- P/B bas (P/B={pb:.1f}, Price/Book=prix/valeur des actifs) mais rentabilité faible : Peut-être bon marché pour une raison (mauvaise gestion).")
         elif 1 <= pb <= 2.5:
             if roe is not None and roe >= 12:
                 score += weights['fundamentals']['pb']['moderate_good_roe']
                 reasons.append(f"+ P/B normal (P/B={pb:.1f}, prix comparé à la valeur de l'entreprise) et bonne rentabilité (ROE≥12%, c'est-à-dire ≥12% de profit sur les fonds propres) : Prix et valeur en actifs sont équilibrés, l'entreprise génère de bons profits.")
             else:
-                score -= weights['fundamentals']['pb']['moderate_bad_roe']
+                score += weights['fundamentals']['pb']['moderate_bad_roe']
                 reasons.append(f"- P/B correct (P/B={pb:.1f}) mais rentabilité insuffisante (ROE faible) : L'entreprise ne tire pas assez de profit de ses actifs.")
         elif pb > 2.5:
-            score -= weights['fundamentals']['pb']['high']
+            score += weights['fundamentals']['pb']['high']
             reasons.append(f"- P/B élevé (P/B={pb:.1f}, Price/Book, vous payez {pb:.1f}x la valeur en actifs) : Risqué sauf si forte croissance attendue.")
 
     # --- Cross PE & PB (sanity check) ---
     if pe is not None and pb is not None:
         if pe > 20 and pb > 3:
-            score -= weights['fundamentals']['expensive_both']
+            score += weights['fundamentals']['expensive_both']
             reasons.append(f"-- Double surévaluation : PE élevé (PE={pe:.1f}, cher par euro de profit) + P/B élevé (P/B={pb:.1f}, cher par rapport aux actifs). Risque très élevé.")
         if pe < 12 and pb < 1.2 and s.close > s.sma200:
-            score += weights['fundamentals']['cheap_with_growth']
+            score += value_conf_weight
             reasons.append(f"+ Décote cohérente confirmée : PE bas (PE={pe:.1f}) + P/B bas (P/B={pb:.1f}) + prix en hausse = l'action est bon marché ET la tendance confirme que c'est réellement une bonne affaire, pas un piège.")
 
     # --- Dividend (defensive bias) ---
@@ -307,7 +344,7 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
         elif 2 <= dy < 5:
             reasons.append(f"* Dividende correct mais non protecteur ({dy:.1f}%).")
         elif dy == 0:
-            score -= weights['fundamentals']['dividend']['no_dividend']
+            score += weights['fundamentals']['dividend']['no_dividend']
             reasons.append("- Aucun dividende : Aucune protection en cas de baisse.")
 
     # Recommendation - using thresholds from config
@@ -319,7 +356,18 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
     else:
         rec = "NEUTRE"
 
-    confidence = min(max(abs(score)/10, 0), 1.0)
+    buy_threshold = thresholds['buy']
+    sell_threshold = thresholds['sell']
+    if rec == "ACHAT":
+        confidence = min((score - buy_threshold) / max(abs(buy_threshold), 1) + 0.5, 1.0)
+    elif rec == "VENTE":
+        confidence = min((sell_threshold - score) / max(abs(sell_threshold), 1) + 0.5, 1.0)
+    else:
+        mid = (buy_threshold + sell_threshold) / 2
+        spread = max(buy_threshold - sell_threshold, 1)
+        confidence = min(abs(score - mid) / spread, 1.0)
+
+    confidence = max(confidence, 0.0)
 
     # Suggested amount based on confidence (example: €1000 max)
     suggested_amount = round(confidence * 1000, 2)
@@ -525,10 +573,10 @@ NOMS_ENTREPRISES = {
 
 def main():
     """Lance l'analyse complète du CAC40 avec suivi console et simulation de trades."""
-    # Forcer UTF-8 sur Windows
-    if sys.stdout.encoding.lower() != 'utf-8':
-        import io
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    # Forcer UTF-8 sur Windows - réenvelopper stdout/stderr sans condition
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
     parser = argparse.ArgumentParser(description="Analyse du CAC40 et recommandation stricte")
     parser.add_argument('--period', type=str, default='5y')
@@ -573,19 +621,7 @@ def main():
         snap = build_snapshot(df_ready, fundamentals)
         outcome = compute_score(snap)
 
-        # Recalculer recommendation et confidence après score macro
-        total_score = outcome["score"]
-        thresholds = config.get('scoring.thresholds')
-        if total_score >= thresholds['buy']:
-            outcome["recommendation"] = "ACHAT"
-        elif total_score <= thresholds['sell']:
-            outcome["recommendation"] = "VENTE"
-        else:
-            outcome["recommendation"] = "NEUTRE"
-        outcome["confidence"] = min(max(abs(total_score)/10, 0), 1.0)
-        outcome["suggested_amount"] = round(outcome["confidence"] * 1000, 2)
-
-        # keep current price for initialization and trades
+        # Keep the recommendation and confidence computed inside compute_score.
         current_prices[ticker] = snap.close
 
         results.append((ticker, nom_entreprise, outcome, snap))

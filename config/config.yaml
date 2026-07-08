@@ -91,7 +91,16 @@ scoring:
 
     # Cross PE/PB Sanity Checks
     expensive_both: -2.0   # PE > 20 AND P/B > 3
-    cheap_with_growth: 0.5 # PE < 12 AND P/B < 1.2 (with bullish trend)
+    cheap_with_growth: 1.5 # PE < 12 AND P/B < 1.2 (with bullish trend)
+
+    # Continuous value scoring (helps separate same-technical stocks)
+    pe_continuous_weight: 1.4   # Stronger bonus for low PE
+    pb_continuous_weight: 1.4   # Stronger bonus for low P/B
+    roe_weight: 0.6             # Bonus for good implied ROE
+    value_confirmation: 1.5    # Extra bonus when cheapness is confirmed by trend
+    pe_scale: 25.0              # Higher PE lowers the bonus more gradually
+    pb_scale: 3.0               # Lower P/B improves the score more gradually
+    roe_threshold: 10.0         # Minimum implied ROE to get a positive quality bump
 
     # Dividend Yield
     dividend:
@@ -108,16 +117,18 @@ scoring:
 # ============================== TRADING PARAMETERS ==============================
 trading:
   # Portfolio
-  initial_cash: 10000
-  min_order_amount: 150    # Raised from 100 to reduce small, fee-heavy orders
+  initial_cash: 40000
+  min_order_amount: 100    # Raised from 100 to reduce small, fee-heavy orders
   max_order_amount: 1000
 
   # Order Sizing Strategy
   order_sizing:
-    type: "fixed_percentage"  # Options: "fixed_percentage", "kelly", "equal_weight"
-    percentage: 0.20          # 20% of available cash per order (reduced from 0.33 for diversification)
-    max_order_amount: 800     # Maximum per order (reduced from 1000)
-    margin_buffer: 200        # Keep this amount as safety buffer (increased from 100)
+    type: "confidence_scaled"  # Options: "fixed_percentage", "kelly", "equal_weight", "confidence_scaled"
+    percentage: 0.20          # Kept for compatibility; not used by confidence-scaled sizing
+    min_confidence_for_min_spend: 0.2  # Confidence <= this uses the minimum order amount
+    max_confidence_for_max_spend: 1.0  # Confidence >= this uses the maximum order amount
+    max_order_amount: 1000    # Maximum spend per order for confidence = 1.0
+    margin_buffer: 200        # Keep this amount as safety buffer
 
   # Rebalancing
   rebalance:
