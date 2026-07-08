@@ -504,7 +504,7 @@ NOMS_ENTREPRISES = {
         'ENGI.PA': 'Engie',
         'ERA.PA': 'Eramet',
         'EL.PA': 'EssilorLuxottica',
-        'ES.PA': 'Esso',
+        'NAE.PA': 'North Atlantic Energies (Ancien ESSO)',
         'EXA.PA': 'Exail Technologies',
         'ERF.PA': 'Eurofins Scientific',
         'ENX.PA': 'Euronext',
