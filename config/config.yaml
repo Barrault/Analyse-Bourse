@@ -117,7 +117,7 @@ scoring:
 # ============================== TRADING PARAMETERS ==============================
 trading:
   # Portfolio
-  initial_cash: 40000
+  initial_cash: 20000
   min_order_amount: 100    # Raised from 100 to reduce small, fee-heavy orders
   max_order_amount: 1000
 

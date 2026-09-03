@@ -55,6 +55,7 @@ class Trade:
     net_cost: float  # amount + fees (for buy) or amount - fees (for sell)
     recommendation: str
     confidence: float
+    entry_confidence: Optional[float] = None
 
 @dataclass
 class Position:
@@ -68,6 +69,7 @@ class Position:
     current_price: float = 0.0
     pnl: float = 0.0
     pnl_pct: float = 0.0
+    entry_confidence: Optional[float] = None
 
 @dataclass
 class PortfolioSnapshot:
@@ -243,11 +245,11 @@ class Backtester:
 
         print(f"\n📉 VENTES proposées: {len(sells)}")
         for ticker, pos, analysis in sells:
-            print(f"  - {analysis['company_name']}: {pos.quantity} @ {analysis['price']:.2f}€")
+            print(f"  - {analysis['company_name']}: Prix={analysis['price']:.2f}€ | Action suggérée: {analysis['recommendation']} | Quantité={pos.quantity:.2f}")
 
         print(f"📈 ACHATS proposés: {len(buys)}")
         for ticker, analysis in buys:
-            print(f"  + {analysis['company_name']}: Conf={analysis['confidence']:.2%}")
+            print(f"  + {analysis['company_name']}: Prix={analysis['price']:.2f}€ | Action suggérée: {analysis['recommendation']} | Confiance={analysis['confidence']:.2%}")
 
         # 4. Exécuter les ventes d'abord
         for ticker, position, analysis in sells:
@@ -276,7 +278,8 @@ class Backtester:
             fees=fees,
             net_cost=net_proceeds,
             recommendation="VENTE",
-            confidence=0.0  # TODO: get from analysis
+            confidence=0.0,
+            entry_confidence=position.entry_confidence
         )
 
         self.trades.append(trade)
@@ -347,7 +350,8 @@ class Backtester:
             buy_date=date,
             buy_price=price,
             buy_fees=fees,
-            quantity=quantity
+            quantity=quantity,
+            entry_confidence=confidence
         )
 
         trade = Trade(
@@ -361,7 +365,8 @@ class Backtester:
             fees=fees,
             net_cost=order_amount,
             recommendation="ACHAT",
-            confidence=analysis["confidence"]
+            confidence=analysis["confidence"],
+            entry_confidence=confidence
         )
 
         self.trades.append(trade)
@@ -451,6 +456,71 @@ class Backtester:
             self.snapshot_portfolio(rebalance_date)
             print(f"✓")
 
+    def _confidence_bucket(self, confidence: Optional[float]) -> str:
+        """Regroupe une confiance d'achat dans un bucket de 20% pour l'analyse."""
+        if confidence is None:
+            return "N/A"
+
+        conf = float(confidence)
+        if conf < 0.2:
+            return "0.00-0.20"
+        if conf < 0.4:
+            return "0.20-0.40"
+        if conf < 0.6:
+            return "0.40-0.60"
+        if conf < 0.8:
+            return "0.60-0.80"
+        return "0.80-1.00"
+
+    def get_confidence_pnl_summary(self):
+        """Retourne un résumé PnL par bucket de confiance d'achat."""
+        sell_trades = [t for t in self.trades if t.side == "SELL" and t.entry_confidence is not None]
+        buckets = {}
+        last_buy_by_ticker = {}
+
+        for trade in self.trades:
+            if trade.side == "BUY":
+                last_buy_by_ticker[trade.ticker] = trade
+            elif trade.side == "SELL" and trade.ticker in last_buy_by_ticker:
+                buy_trade = last_buy_by_ticker.get(trade.ticker)
+                buy_value = buy_trade.net_cost
+                sell_value = trade.net_cost
+                pnl = sell_value - buy_value
+                pnl_pct = (pnl / buy_value * 100) if buy_value > 0 else 0.0
+
+                bucket = self._confidence_bucket(trade.entry_confidence)
+                if bucket not in buckets:
+                    buckets[bucket] = {
+                        "label": bucket,
+                        "trades": 0,
+                        "wins": 0,
+                        "losses": 0,
+                        "win_rate": 0.0,
+                        "avg_pnl": 0.0,
+                        "avg_pnl_pct": 0.0,
+                    }
+
+                bucket_summary = buckets[bucket]
+                bucket_summary["trades"] += 1
+                bucket_summary["avg_pnl"] += pnl
+                bucket_summary["avg_pnl_pct"] += pnl_pct
+                if pnl > 0:
+                    bucket_summary["wins"] += 1
+                else:
+                    bucket_summary["losses"] += 1
+
+        summary = []
+        for bucket_name in ["0.00-0.20", "0.20-0.40", "0.40-0.60", "0.60-0.80", "0.80-1.00"]:
+            if bucket_name in buckets:
+                bucket_summary = buckets[bucket_name]
+                trades = bucket_summary["trades"]
+                bucket_summary["win_rate"] = (bucket_summary["wins"] / trades * 100) if trades else 0.0
+                bucket_summary["avg_pnl"] = (bucket_summary["avg_pnl"] / trades) if trades else 0.0
+                bucket_summary["avg_pnl_pct"] = (bucket_summary["avg_pnl_pct"] / trades) if trades else 0.0
+                summary.append(bucket_summary)
+
+        return summary
+
     def print_summary(self):
         """Affiche un résumé des performances."""
         if not self.portfolio_history:
@@ -503,6 +573,16 @@ class Backtester:
             print(f"  Ventes gagnantes:    {wins:>10}")
             print(f"  Ventes perdantes:    {losses:>10}")
             print(f"  Win rate:            {win_rate:>10.2f}%")
+
+        confidence_summary = self.get_confidence_pnl_summary()
+        if confidence_summary:
+            print(f"\n🎯 PnL PAR CONFIDENCE D'ACHAT:")
+            for bucket in confidence_summary:
+                print(
+                    f"  {bucket['label']:<10} | trades={bucket['trades']:>3} | "
+                    f"wins={bucket['wins']:>3} | losses={bucket['losses']:>3} | "
+                    f"win_rate={bucket['win_rate']:>6.1f}% | avg_pnl={bucket['avg_pnl']:>8.2f}€"
+                )
 
         print(f"\n📊 PORTEFEUILLE FINAL:")
         print(f"  Cash:                {last.cash:>10.2f}€")

@@ -2,7 +2,7 @@ import unittest
 
 import pandas as pd
 
-from cac40_analyzer import IndicatorSnapshot, compute_score
+from cac40_analyzer import IndicatorSnapshot, compute_score, format_recommendation_summary
 
 
 def make_snapshot(pe, pb, dy):
@@ -36,6 +36,20 @@ class ScoringTests(unittest.TestCase):
 
         self.assertGreater(strong_score, weak_score)
         self.assertGreater(strong_score - weak_score, 2.0)
+
+    def test_recommendation_summary_includes_price_and_action(self):
+        summary = format_recommendation_summary(
+            company_name="Pernod Ricard",
+            recommendation="ACHAT",
+            confidence=0.42,
+            suggested_amount=16.67,
+            price=152.34,
+        )
+
+        self.assertIn("Pernod Ricard", summary)
+        self.assertIn("ACHAT", summary)
+        self.assertIn("152.34", summary)
+        self.assertIn("16.67", summary)
 
 
 if __name__ == "__main__":

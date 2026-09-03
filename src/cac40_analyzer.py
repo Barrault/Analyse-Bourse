@@ -9,7 +9,6 @@ import pandas as pd
 import yfinance as yf
 from dataclasses import dataclass
 from typing import Optional, Dict, Any, List
-import ta
 import sys
 import io
 
@@ -68,6 +67,7 @@ def atr(high: pd.Series, low: pd.Series, close: pd.Series, window: int = 14) -> 
     """Calcule l’Average True Range (ATR), mesure de volatilité."""
     tr = true_range(high, low, close)
     return tr.ewm(alpha=1/window, adjust=False).mean()
+
 # ----------------------- Indicator Preparation ----------------------- #
 
 def prepare_indicators(df: pd.DataFrame) -> Optional[pd.DataFrame]:
@@ -77,7 +77,6 @@ def prepare_indicators(df: pd.DataFrame) -> Optional[pd.DataFrame]:
 
     df = df.copy()
 
-    # Si le DataFrame a un MultiIndex (yfinance avec plusieurs tickers), aplatir
     if isinstance(df.columns, pd.MultiIndex) or getattr(df.columns, 'nlevels', 1) > 1:
         required_cols = ['Close', 'High', 'Low', 'Volume', 'Adj Close', 'Open']
         chosen = None
@@ -92,20 +91,17 @@ def prepare_indicators(df: pd.DataFrame) -> Optional[pd.DataFrame]:
         else:
             df.columns = df.columns.get_level_values(-1)
 
-    # S'assurer que Close, High, Low, Volume existent
     required_cols = ['Close', 'High', 'Low', 'Volume']
     for col in required_cols:
         if col not in df.columns:
             return None
 
-    # Charger les paramètres depuis la configuration
     sma_params = config.get_section('indicators')['sma']
     rsi_params = config.get_section('indicators')['rsi']
     bb_params = config.get_section('indicators')['bollinger']
     atr_params = config.get_section('indicators')['atr']
     vol_params = config.get_section('indicators')['volume']
 
-    # Calculer les indicateurs avec les paramètres de config
     df['SMA20'] = sma(df['Close'], sma_params['short_window'])
     df['SMA50'] = sma(df['Close'], sma_params['mid_window'])
     df['SMA200'] = sma(df['Close'], sma_params['long_window'])
@@ -124,6 +120,7 @@ def prepare_indicators(df: pd.DataFrame) -> Optional[pd.DataFrame]:
     df['VOL_SMA20'] = sma(df['Volume'], vol_params['sma_window'])
 
     return df.dropna()
+
 # ----------------------- Scoring & Recommendation ----------------------- #
 
 @dataclass
@@ -151,13 +148,9 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
     Évalue les tendances, momentum, RSI, bandes de Bollinger, volume, volatilité
     et fondamentaux pour produire un score, une recommandation et un niveau de confiance.
     """
-    # Charger les poids depuis la configuration
     weights = config.get_section('scoring')
-
     score = 0
     reasons: List[str] = []
-    # Les poids peuvent être positifs ou négatifs : un poids négatif pénalise le score,
-    # un poids positif l'augmente.
 
     # Long-term trend: Close > SMA200
     if s.close > s.sma200:
@@ -243,21 +236,28 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
         score += weights['volatility']['high_volatility']
         reasons.append("* Volatilité élevée : Le prix peut beaucoup bouger, prudence.")
 
-    # ----------------------- Fundamentals (strict & punitive) ----------------------- #
+    tech_score = score
+
+    # ----------------------- Fundamentals ----------------------- #
     pe = s.fundamentals.get("trailingPE")
     pb = s.fundamentals.get("priceToBook")
     dy = s.fundamentals.get("dividendYield")
 
-    # Helpers dérivés (qualité)
+    weak_fundamentals = False
+    toxic_fundamentals = False
+
     roe = None
     if pe is not None and pb is not None and pe > 0:
-        roe = 1 / pe * pb * 100  # approximation ROE implicite (%)
+        roe = 1 / pe * pb * 100
 
-    # --- PE analysis (croisé avec tendance & momentum) ---
+    # --- PE analysis ---
     if pe is not None:
-        if pe < 8:
+        if pe < 0:
+            toxic_fundamentals = True
+            reasons.append(f"-- PE négatif (PE={pe:.1f}) : L'entreprise essuie des pertes nettes. Profil fondamental très dégradé.")
+        elif 0 <= pe < 8:
             score += weights['fundamentals']['pe']['very_low']
-            reasons.append(f"- PE très bas (PE={pe:.1f}) : Le PE (Price/Earnings) montre combien vous payez pour chaque euro de profit annuel. Un PE très bas (< 8) peut signifier une opportunité ou un piège (entreprise en difficulté).")
+            reasons.append(f"- PE très bas (PE={pe:.1f}) : Le PE montre combien vous payez pour chaque euro de profit annuel. Un PE très bas (< 8) peut signifier une opportunité ou un piège.")
         elif 8 <= pe <= 14:
             if s.close > s.sma200 and s.macd > 0:
                 score += weights['fundamentals']['pe']['low']
@@ -267,12 +267,14 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
                 reasons.append(f"- PE correct (PE={pe:.1f}) mais la dynamique est faible - pas assez de raisons d'acheter.")
         elif 14 < pe <= 22:
             score += weights['fundamentals']['pe']['moderate']
-            reasons.append(f"- PE déjà exigeant (PE={pe:.1f}, Price/Earnings=prix/profit annuel) : Entre 14 et 22, vous payez davantage par euro de profit, sans forte croissance visible.")
+            reasons.append(f"- PE déjà exigeant (PE={pe:.1f}) : Entre 14 et 22, vous payez davantage par euro de profit, sans forte croissance visible.")
+            weak_fundamentals = True
         elif pe > 22:
             score += weights['fundamentals']['pe']['high']
-            reasons.append(f"-- PE élevé (PE={pe:.1f}, vous payez {pe:.1f}€ pour chaque euro de profit) : Au-dessus de 22, c'est cher. Le prix devrait augmenter vite pour justifier cette valorisation.")
+            reasons.append(f"-- PE élevé (PE={pe:.1f}) : Au-dessus de 22, c'est cher. Le prix devrait augmenter vite pour justifier cette valorisation.")
+            weak_fundamentals = True
 
-    # --- Continuous value scoring (helps separate similar technical setups) ---
+    # --- Continuous value scoring ---
     fund_weights = weights['fundamentals']
     pe_scale = config.get('scoring.fundamentals.pe_scale', 25.0)
     pb_scale = config.get('scoring.fundamentals.pb_scale', 3.0)
@@ -307,25 +309,29 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
         else:
             score -= roe_weight * 0.5
 
-    # --- Price to Book analysis (croisé avec ROE implicite) ---
+    # --- Price to Book analysis ---
     if pb is not None:
         if pb < 1:
             if roe is not None and roe > 10:
                 score += weights['fundamentals']['pb']['very_low_good_roe']
-                reasons.append(f"+ P/B sous-évalué (P/B={pb:.1f}) avec bon ROE (ROE≈{roe:.1f}%) : P/B compare le prix aux actifs de l'entreprise (terrain, machines, etc.). Un P/B < 1 signifie vous l'achetez moins cher que sa valeur en actifs. Le ROE (Return on Equity) mesure combien de profit l'entreprise fait avec son argent - ici > 10%, c'est bon !")
+                reasons.append(f"+ P/B sous-évalué (P/B={pb:.1f}) avec bon ROE (ROE≈{roe:.1f}%) : Un P/B < 1 signifie vous l'achetez moins cher que sa valeur en actifs.")
             else:
                 score += weights['fundamentals']['pb']['very_low_bad_roe']
-                reasons.append(f"- P/B bas (P/B={pb:.1f}, Price/Book=prix/valeur des actifs) mais rentabilité faible : Peut-être bon marché pour une raison (mauvaise gestion).")
+                reasons.append(f"- P/B bas (P/B={pb:.1f}) mais rentabilité faible : Peut-être bon marché pour une raison (mauvaise gestion).")
+                weak_fundamentals = True
         elif 1 <= pb <= 2.5:
             if roe is not None and roe >= 12:
                 score += weights['fundamentals']['pb']['moderate_good_roe']
                 reasons.append(f"+ P/B normal (P/B={pb:.1f}, prix comparé à la valeur de l'entreprise) et bonne rentabilité (ROE≥12%, c'est-à-dire ≥12% de profit sur les fonds propres) : Prix et valeur en actifs sont équilibrés, l'entreprise génère de bons profits.")
             else:
                 score += weights['fundamentals']['pb']['moderate_bad_roe']
-                reasons.append(f"- P/B correct (P/B={pb:.1f}) mais rentabilité insuffisante (ROE faible) : L'entreprise ne tire pas assez de profit de ses actifs.")
+                reasons.append(f"- P/B correct (P/B={pb:.1f}) mais rentabilité insuffisante (ROE faible).")
+                weak_fundamentals = True
         elif pb > 2.5:
             score += weights['fundamentals']['pb']['high']
-            reasons.append(f"- P/B élevé (P/B={pb:.1f}, Price/Book, vous payez {pb:.1f}x la valeur en actifs) : Risqué sauf si forte croissance attendue.")
+            reasons.append(f"- P/B élevé (P/B={pb:.1f}) : Risqué sauf si forte croissance attendue.")
+            weak_fundamentals = True
+            toxic_fundamentals = True
 
     # --- Cross PE & PB (sanity check) ---
     if pe is not None and pb is not None:
@@ -334,9 +340,11 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
             reasons.append(f"-- Double surévaluation : PE élevé (PE={pe:.1f}, cher par euro de profit) + P/B élevé (P/B={pb:.1f}, cher par rapport aux actifs). Risque très élevé.")
         if pe < 12 and pb < 1.2 and s.close > s.sma200:
             score += value_conf_weight
-            reasons.append(f"+ Décote cohérente confirmée : PE bas (PE={pe:.1f}) + P/B bas (P/B={pb:.1f}) + prix en hausse = l'action est bon marché ET la tendance confirme que c'est réellement une bonne affaire, pas un piège.")
+            reasons.append(f"+ Décote cohérente confirmée : PE bas (PE={pe:.1f}) + P/B bas (P/B={pb:.1f}) + prix en hausse.")
 
-    # --- Dividend (defensive bias) ---
+    fund_score = score - tech_score
+
+    # --- Dividend ---
     if dy is not None:
         if dy >= 5:
             score += weights['fundamentals']['dividend']['high_yield']
@@ -347,7 +355,6 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
             score += weights['fundamentals']['dividend']['no_dividend']
             reasons.append("- Aucun dividende : Aucune protection en cas de baisse.")
 
-    # Recommendation - using thresholds from config
     thresholds = config.get('scoring.thresholds')
     if score >= thresholds['buy']:
         rec = "ACHAT"
@@ -358,21 +365,38 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
 
     buy_threshold = thresholds['buy']
     sell_threshold = thresholds['sell']
+
     if rec == "ACHAT":
         confidence = min((score - buy_threshold) / max(abs(buy_threshold), 1) + 0.5, 1.0)
+        if weak_fundamentals or toxic_fundamentals:
+            confidence = min(confidence, 0.40)
+            reasons.append("- Pénalité de confiance : Achat dégradé en profil spéculatif/technique. Les fondamentaux n'appuient pas la hausse des prix.")
+
     elif rec == "VENTE":
         confidence = min((sell_threshold - score) / max(abs(sell_threshold), 1) + 0.5, 1.0)
+
+        # 1. CAS TOXIQUE : Fondamentaux désastreux (Pertes nettes ou bulle sur les actifs)
+        if toxic_fundamentals:
+            confidence = max(confidence, 0.90)
+            reasons.append("+ Vente de conviction : La chute technique est confirmée par des fondamentaux toxiques ou une surévaluation critique.")
+
+        # 2. CAS VALUE SUPPORT : Le titre baisse mais il est déjà tellement donné qu'on ne shorte pas à 100%
+        elif pe is not None and 0 < pe < 11 and pb is not None and pb < 1.1:
+            confidence = min(confidence, 0.35)
+            reasons.append("- Alerte Value Support : Les indicateurs techniques sont baissiers, mais l'action est fondamentalement très bon marché (PE et P/B bas). Confiance bridée pour éviter de vendre au plus bas.")
+
+        # 3. CAS PANIC SELL : Excellents fondamentaux, le marché jette le bébé avec l'eau du bain
+        elif not weak_fundamentals:
+            confidence = min(confidence, 0.30)
+            reasons.append("- Alerte Panic Sell : Les indicateurs techniques virent au rouge, mais la qualité fondamentale de l'entreprise reste excellente. Vente à forte conviction injustifiée.")
     else:
         mid = (buy_threshold + sell_threshold) / 2
         spread = max(buy_threshold - sell_threshold, 1)
         confidence = min(abs(score - mid) / spread, 1.0)
 
     confidence = max(confidence, 0.0)
-
-    # Suggested amount based on confidence (example: €1000 max)
     suggested_amount = round(confidence * 1000, 2)
 
-    # Retourne un dictionnaire avec score, recommandation, confiance et explications
     return {
         "score": score,
         "recommendation": rec,
@@ -382,8 +406,6 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
     }
 
 # ----------------------- Fundamentals & Snapshot ----------------------- #
-# Récupération des fondamentaux (PE, P/B, dividende) et création d’un snapshot
-
 
 def fetch_fundamentals_safe(ticker: str) -> Dict[str, Optional[float]]:
     """Récupère les fondamentaux d’un ticker Yahoo Finance, avec conversion sécurisée."""
@@ -398,55 +420,36 @@ def fetch_fundamentals_safe(ticker: str) -> Dict[str, Optional[float]]:
         pe = to_float(info.get("trailingPE"))
         pb = to_float(info.get("priceToBook"))
         dy = to_float(info.get("dividendYield"))
-        # Si Yahoo renvoie un ratio de dividende (ex: 0.023), convertir en pourcentage :
         if dy is not None and dy < 1:
             dy *= 100
         return {"trailingPE": pe, "priceToBook": pb, "dividendYield": dy}
     except Exception:
         return {"trailingPE": None, "priceToBook": None, "dividendYield": None}
 
-
 def build_snapshot(df: pd.DataFrame, fundamentals: Dict[str, Optional[float]]) -> IndicatorSnapshot:
     """Construit un `IndicatorSnapshot` à partir des derniers indicateurs calculés."""
-    # Trouver la DERNIÈRE LIGNE SANS NaN (tous les indicateurs valides)
     df_valid = df.dropna()
 
     if df_valid.empty:
-        # Si aucune ligne valide, retourner un snapshot vide
-        snap = IndicatorSnapshot(
-            date=None,
-            close=None,
-            sma20=None,
-            sma50=None,
-            sma200=None,
-            rsi14=None,
-            macd=None,
-            macd_signal=None,
-            macd_hist=None,
-            bb_mid=None,
-            bb_upper=None,
-            bb_lower=None,
-            atr14=None,
-            vol=None,
-            vol_sma20=None,
-            fundamentals=fundamentals
+        return IndicatorSnapshot(
+            date=None, close=None, sma20=None, sma50=None, sma200=None,
+            rsi14=None, macd=None, macd_signal=None, macd_hist=None,
+            bb_mid=None, bb_upper=None, bb_lower=None, atr14=None,
+            vol=None, vol_sma20=None, fundamentals=fundamentals
         )
-        return snap
 
-    # Accéder à la dernière ligne comme un scalar
     row_idx = df_valid.index[-1]
 
     def _get(col: str) -> Optional[float]:
         try:
             val = df_valid.loc[row_idx, col]
-            # Si c'est une Series (MultiIndex), prendre le premier élément
             if isinstance(val, pd.Series):
                 val = val.iloc[0]
             return float(val) if val is not None and pd.notna(val) else None
         except Exception:
             return None
 
-    snap = IndicatorSnapshot(
+    return IndicatorSnapshot(
         date=row_idx,
         close=_get('Close'),
         sma20=_get('SMA20'),
@@ -465,9 +468,6 @@ def build_snapshot(df: pd.DataFrame, fundamentals: Dict[str, Optional[float]]) -
         fundamentals=fundamentals
     )
 
-    return snap
-
-
 # ----------------------- Tickers CAC40 et noms ----------------------- #
 
 NOMS_ENTREPRISES = {
@@ -479,6 +479,7 @@ NOMS_ENTREPRISES = {
         'ALO.PA': 'Alstom',
         'AMUN.PA': 'Amundi',
         'ARAMI.PA': 'Aramis Group',
+        'ARRJ.F': 'ArcelorMittal',
         'AKE.PA': 'Arkema',
         'ASY.PA': 'Assystem',
         'ATO.PA': 'Atos',
@@ -505,10 +506,12 @@ NOMS_ENTREPRISES = {
         'ERA.PA': 'Eramet',
         'EL.PA': 'EssilorLuxottica',
         'NAE.PA': 'North Atlantic Energies (Ancien ESSO)',
-        'EXA.PA': 'Exail Technologies',
+        'FGR.PA': 'Eiffage',
+        'ELIS.PA': 'Elis',
         'ERF.PA': 'Eurofins Scientific',
         'ENX.PA': 'Euronext',
         'ETL.PA': 'Eutelsat',
+        'EXA.PA': 'Exail Technologies',
         'FDE.PA': 'Française de l\'énergie',
         'FDJU.PA': 'Française des Jeux',
         'FNAC.PA': 'Fnac Darty',
@@ -556,6 +559,7 @@ NOMS_ENTREPRISES = {
         'HO.PA': 'Thales',
         'TTE.PA': 'TotalEnergies',
         'TNG.PA': 'Transgene',
+        'UBI.PA': 'Ubisoft',
         'URW.PA': 'Unibail-Rodamco-Westfield',
         'FR.PA': 'Valeo',
         'VK.PA': 'Vallourec',
@@ -566,15 +570,20 @@ NOMS_ENTREPRISES = {
         'WLN.PA': 'Worldline'
 }
 
-
 # ----------------------- Main Routine ----------------------- #
-# Point d'entrée : analyse toutes les valeurs du CAC40, calcule les indicateurs,
-# affiche les recommandations et met à jour les fichiers Excel.
+
+def format_recommendation_summary(company_name: str, recommendation: str,
+                                  confidence: float, suggested_amount: float,
+                                  price: Optional[float] = None) -> str:
+    """Formate la ligne de recommandation avec prix et action suggérée."""
+    price_text = f" | Prix utilisé: {price:.2f}€" if price is not None else ""
+    return (
+        f"{company_name}: {recommendation} | Confiance: {round(float(confidence), 2)} "
+        f"| Montant suggéré: €{suggested_amount:.2f}{price_text} | Action suggérée: {recommendation}"
+    )
 
 def main():
-    """Lance l'analyse complète du CAC40 avec suivi console et simulation de trades."""
-    # Forcer UTF-8 sur Windows - réenvelopper stdout/stderr sans condition
-    import io
+    """Lance l'analyse complète du CAC40 avec suivi console."""
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
@@ -585,10 +594,9 @@ def main():
 
     cac40_tickers = list(NOMS_ENTREPRISES.keys())
     results = []
-
-    # We will gather current prices to initialize positions if needed
     current_prices = {}
 
+    print(f"\nNOUVELLE VERSION SÉCURISÉE")
     for ticker in cac40_tickers:
         nom_entreprise = NOMS_ENTREPRISES.get(ticker, ticker)
         print(f"\nAnalyse de {nom_entreprise}...")
@@ -597,40 +605,23 @@ def main():
             print(f"Aucune donnée pour {ticker}. Ignoré.")
             continue
 
-        df['SMA20'] = sma(df['Close'], 20)
-        df['SMA50'] = sma(df['Close'], 50)
-        df['SMA200'] = sma(df['Close'], 200)
-        df['RSI14'] = rsi(df['Close'], 14)
-        macd_line, signal_line, hist = macd(df['Close'])
-        df['MACD'] = macd_line
-        df['MACD_signal'] = signal_line
-        df['MACD_hist'] = hist
-        bb_mid, bb_upper, bb_lower = bollinger(df['Close'], 20, 2.0)
-        df['BB_mid'] = bb_mid
-        df['BB_upper'] = bb_upper
-        df['BB_lower'] = bb_lower
-        df['ATR14'] = atr(df['High'], df['Low'], df['Close'], 14)
-        df['VOL_SMA20'] = sma(df['Volume'], 20)
+        df_ready = prepare_indicators(df)
 
-        fundamentals = fetch_fundamentals_safe(ticker)
-        df_ready = df.dropna().copy()
-        if df_ready.empty:
+        if df_ready is None or df_ready.empty:
             print(f"Pas assez d'historique pour {ticker}. Ignoré.")
             continue
 
+        fundamentals = fetch_fundamentals_safe(ticker)
         snap = build_snapshot(df_ready, fundamentals)
         outcome = compute_score(snap)
 
-        # Keep the recommendation and confidence computed inside compute_score.
         current_prices[ticker] = snap.close
-
         results.append((ticker, nom_entreprise, outcome, snap))
 
-    # Sort results by confidence descending (as requested)
     results_sorted = sorted(results, key=lambda x: x[2]["confidence"], reverse=True)
 
     for (ticker, nom_entreprise, outcome, snap) in results_sorted:
-        print(f"\n{nom_entreprise}: {outcome['recommendation']} | Confiance: {round(outcome['confidence'], 2)} | Montant suggéré: €{outcome['suggested_amount']}")
+        print(f"\n{format_recommendation_summary(nom_entreprise, outcome['recommendation'], outcome['confidence'], outcome['suggested_amount'], snap.close)}")
         print("Principaux indicateurs:")
         for r in outcome['reasons']:
             print(f" {r}")
