@@ -13,7 +13,7 @@ import pandas as pd
 import yfinance as yf
 
 from cac40_analyzer import (
-    compute_score, fetch_fundamentals_safe, flatten_columns, order_amount_for_confidence,
+    compute_score, fetch_fundamentals_safe, flatten_columns, order_amount,
     build_snapshot, prepare_indicators_by_segment, split_anomalies, NOMS_ENTREPRISES
 )
 from config_loader import config
@@ -373,18 +373,17 @@ class Backtester:
 
     def _execute_buy(self, ticker: str, analysis: Dict, date: pd.Timestamp):
         """Exécute un achat si possible."""
-        margin_buffer = config.get('trading.order_sizing.margin_buffer')
+        margin_buffer = config.get('trading.margin_buffer')
         confidence = float(analysis['confidence'])
         min_order = float(self.min_order_amount)
-        max_order = float(config.get('trading.max_order_amount'))
-        desired_amount = order_amount_for_confidence(confidence, min_order=min_order)
+        desired_amount = order_amount()
 
         # Respect available cash and safety buffer
         available_for_order = max(self.cash - margin_buffer, 0.0)
-        order_amount = min(desired_amount, max_order, available_for_order)
+        budget = min(desired_amount, available_for_order)
 
         # If we can't reach the minimum order, skip the buy
-        if order_amount < min_order:
+        if budget < min_order:
             print(f"  ✗ ACHAT {analysis['company_name']}: Pas assez de cash ({self.cash:.2f}€ < {min_order:.2f}€)")
             return
 
@@ -392,9 +391,9 @@ class Backtester:
         # montant brut + frais <= budget. Les paliers de frais étant croissants,
         # frais(brut) <= frais(budget) garantit que le total tient dans le budget.
         price = analysis["price"]
-        quantity = math.floor((order_amount - calculate_fees(order_amount)) / price)
+        quantity = math.floor((budget - calculate_fees(budget)) / price)
         if quantity < 1:
-            print(f"  ✗ ACHAT {analysis['company_name']}: 1 action ({price:.2f}€) dépasse le budget de {order_amount:.2f}€")
+            print(f"  ✗ ACHAT {analysis['company_name']}: 1 action ({price:.2f}€) dépasse le budget de {budget:.2f}€")
             return
 
         gross_amount = quantity * price

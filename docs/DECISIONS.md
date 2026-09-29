@@ -531,3 +531,21 @@ de la branche `fix/audit-corrections`.
   - Calibrer la probabilité de **rendement positif** : elle mesurerait surtout la hausse
     générale du marché, pas la qualité du choix d'un titre. Or c'est le choix des titres
     qui compte quand le capital est entièrement investi.
+
+---
+
+## DEC-21 — Montant identique pour chaque achat
+
+- **Contexte** : le montant variait de 100 à 1 000 € selon la confiance (DEC-07). Or la
+  confiance calibrée va de 44 % à 49 % (DEC-20) : moduler le montant revenait à miser
+  davantage sur des signaux à peine différents, sans avantage mesuré.
+- **Décision** : `trading.order_amount: 1000` pour tout achat. `min_order_amount` devient
+  le plancher d'un achat réduit quand la trésorerie ne permet pas le montant plein. La
+  confiance sert désormais à **ordonner** les achats quand le cash manque (DEC-20), pas à
+  les dimensionner. Clés supprimées : `max_order_amount` et
+  `order_sizing.min/max_confidence_*` ; `margin_buffer` passe directement sous `trading`.
+- **Justification** : à avantage égal, des lignes de même taille minimisent le risque de
+  concentration. C'est l'approche par défaut tant qu'aucune mesure ne justifie autre chose.
+- **Écarté** : un dimensionnement de type Kelly, proportionnel à l'avantage. Avec un
+  avantage de 1 à 2 points de probabilité, estimé avec incertitude, il serait quasi nul
+  et très instable.

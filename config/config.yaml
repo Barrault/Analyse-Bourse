@@ -142,14 +142,11 @@ scoring:
 trading:
   # Portfolio
   initial_cash: 20000
-  min_order_amount: 100    # Montant d'un achat à faible confiance
-  max_order_amount: 1000   # Montant d'un achat à confiance maximale
-
-  # Order Sizing Strategy : montant linéaire en fonction de la confiance
-  order_sizing:
-    min_confidence_for_min_spend: 0.2  # Confiance <= ceci -> min_order_amount
-    max_confidence_for_max_spend: 1.0  # Confiance >= ceci -> max_order_amount
-    margin_buffer: 200                 # Trésorerie toujours conservée
+  # Montant identique pour chaque achat (DEC-21) : la confiance calibrée varie trop peu
+  # pour justifier des montants différents.
+  order_amount: 1000
+  min_order_amount: 100    # Achat réduit accepté si la trésorerie ne permet pas order_amount
+  margin_buffer: 200       # Trésorerie toujours conservée
 
   # Exit rules (en plus du signal VENTE), contrôlées à chaque rebalance
   exit_rules:
@@ -226,6 +223,6 @@ output:
 #    Sans effet en backtest tant que backtest.use_fundamentals = false.
 # 3. TENDANCE vs MOMENTUM : poids de tendance élevés = suivi de tendance ;
 #    pénalités RSI/Bollinger élevées = approche contrariante.
-# 4. TAILLE DES ORDRES : min/max_order_amount bornent chaque achat ; avec un capital de
-#    20 000 € et 1 000 € max par ordre, il faut ~20 positions pour être investi.
+# 4. TAILLE DES ORDRES : order_amount par achat ; avec un capital de 20 000 € et
+#    1 000 € par ordre, il faut ~20 positions pour être investi.
 # 5. Toujours comparer au benchmark (backtest.benchmark) avant de conclure.

@@ -167,26 +167,13 @@ def outperformance_probability(technical_score: float) -> float:
     return float(calibration['probabilities'][tranche])
 
 
-def order_amount_for_confidence(confidence: float, min_order: Optional[float] = None,
-                                max_order: Optional[float] = None) -> float:
-    """Montant d'achat visé pour une confiance donnée (hors contrainte de trésorerie).
+def order_amount() -> float:
+    """Montant de chaque achat : identique pour tous les signaux (cf. DEC-21).
 
-    Confiance <= min_confidence_for_min_spend -> min_order ; >= max_confidence_for_max_spend
-    -> max_order ; interpolation linéaire entre les deux. Partagé par l'analyse et le backtest.
+    La confiance calibrée varie trop peu (≈ 44 % à 49 %) pour justifier des montants
+    différents ; des lignes de même taille évitent aussi de concentrer le risque.
     """
-    trading = config.get_section('trading')
-    sizing = trading['order_sizing']
-    min_order = float(trading['min_order_amount'] if min_order is None else min_order)
-    max_order = max(float(trading['max_order_amount'] if max_order is None else max_order), min_order)
-    low = float(sizing['min_confidence_for_min_spend'])
-    high = float(sizing['max_confidence_for_max_spend'])
-
-    confidence = min(max(float(confidence), 0.0), 1.0)
-    if confidence <= low:
-        return min_order
-    if confidence >= high:
-        return max_order
-    return min_order + (confidence - low) / (high - low) * (max_order - min_order)
+    return float(config.get('trading.order_amount'))
 
 
 @dataclass
@@ -208,6 +195,7 @@ class IndicatorSnapshot:
     vol: float
     vol_sma20: float
     fundamentals: Dict[str, Optional[float]]
+
 
 def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
     """
@@ -397,7 +385,7 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
             reasons.append("- Alerte Panic Sell : les indicateurs techniques virent au rouge, mais la qualité fondamentale de l'entreprise reste bonne. La baisse peut être excessive.")
 
     # Un montant n'a de sens que pour un achat ; même règle que le backtest (cf. DEC-07)
-    suggested_amount = round(order_amount_for_confidence(confidence), 2) if rec == "ACHAT" else 0.0
+    suggested_amount = order_amount() if rec == "ACHAT" else 0.0
 
     return {
         "score": score,

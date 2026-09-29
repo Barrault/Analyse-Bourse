@@ -1,7 +1,7 @@
 """Tests de la confiance calibrée (DEC-20) et du montant suggéré."""
 import pytest
 
-from cac40_analyzer import compute_score, order_amount_for_confidence, outperformance_probability
+from cac40_analyzer import compute_score, order_amount, outperformance_probability
 from config_loader import config
 
 
@@ -39,4 +39,4 @@ def test_only_buy_signals_get_a_suggested_amount(snapshot):
     bearish = compute_score(snapshot(pe=18.0, pb=2.9, bullish=False))
     assert bearish["suggested_amount"] == 0.0
     bullish = compute_score(snapshot(pe=10.0, pb=1.1, dy=5.5, eps=5.0))
-    assert bullish["suggested_amount"] == pytest.approx(order_amount_for_confidence(bullish["confidence"]), abs=0.01)
+    assert bullish["suggested_amount"] == order_amount() == config.get("trading.order_amount")
