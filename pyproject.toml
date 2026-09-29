@@ -1,0 +1,14 @@
+[project]
+name = "analyse-boursiere"
+version = "1.1.0"
+description = "Analyse technique et fondamentale d'actions françaises, avec backtest réaliste"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+# Les modules de src/ sont des scripts à plat (imports `from config_loader import ...`)
+pythonpath = ["src"]
+testpaths = ["tests"]
+markers = [
+    "network: test qui appelle Yahoo Finance (exclu par défaut, lancer avec -m network)",
+]
+addopts = "-m 'not network'"

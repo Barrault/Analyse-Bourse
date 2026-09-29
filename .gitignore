@@ -37,3 +37,8 @@ cac40env/
 *.xlsx
 *.xls
 results.txt
+
+# Test & run artefacts
+.pytest_cache/
+logs_results/
+results/

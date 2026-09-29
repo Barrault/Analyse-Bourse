@@ -1,0 +1,6 @@
+# Dépendances d'exécution (versions minimales testées, majeures bornées)
+numpy>=1.26,<3
+pandas>=2.1,<3
+PyYAML>=6.0,<7
+# yfinance >= 0.2.54 renvoie `dividendYield` déjà exprimé en pourcentage (cf. DEC-02)
+yfinance>=0.2.54,<2
