@@ -234,6 +234,7 @@ class Backtester:
             "recommendation": outcome["recommendation"],
             "confidence": outcome["confidence"],
             "score": outcome["score"],
+            "technical_score": outcome["technical_score"],
             "snapshot": snap
         }
 

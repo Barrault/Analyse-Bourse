@@ -424,3 +424,37 @@ de la branche `fix/audit-corrections`.
 - **Conséquences** : Atos et Vivendi ne sont plus analysables pendant les 200 séances qui
   suivent leur saut. Tout nouveau saut détecté est signalé au chargement pour vérification
   manuelle : s'il est réel, il faut l'ajouter à la liste blanche.
+
+---
+
+## DEC-18 — Protocole de calibrage : apprentissage et test séparés, historique de 10 ans
+
+- **Contexte** : l'étude du 2026-09-29 montrait que la confiance ne prédit rien et que
+  plusieurs composantes du score n'ont aucun effet. Mais elle portait sur 2024-2026.
+  Régler le score sur cette période puis l'y évaluer donnerait un résultat flatté
+  (sur-ajustement : on retrouve ce qu'on a appris).
+- **Décision** :
+  - Historique porté à **10 ans** (`backtest.data.period: 10y`, données dès 2016-09).
+  - **Apprentissage** (`calibration.train_start/train_end`) : 2017-07 → 2021-09. Tous les
+    réglages (composantes, table de confiance) sont décidés sur cette période uniquement.
+    Le début laisse 200 séances d'historique pour la SMA200. La fin est **purgée** de
+    3 mois, pour que le dernier rendement mesuré se termine avant la période de test.
+  - **Test** (`backtest.start_date`) : 2022-01 → aujourd'hui. Il inclut la baisse de 2022,
+    que 2024-2026 ne contenait pas. On y évalue, on n'y règle rien.
+  - Mesure : rendement relatif à l'ETF CAC 40 sur 63 séances (~3 mois), de l'ouverture du
+    jour du signal à la clôture de fin d'horizon. Pour les écarts entre composantes, on
+    utilise son **rang percentile dans le mois**, robuste aux extrêmes, et un t de Student
+    calculé **sur les mois** (les titres d'un même mois ne sont pas indépendants).
+  - **Règle de sélection fixée avant de voir les résultats** (`calibration.min_t: 1.0`) :
+    une composante garde son poids si son effet a le signe attendu et un t ≥ 1 ; sinon son
+    poids passe à 0. On ne **renverse** jamais un signe et on n'optimise pas la valeur des
+    poids : avec ~50 mois, optimiser, c'est sur-ajuster.
+  - Outil reproductible : `src/calibrate.py` (`features`, `calibrate`, `evaluate`), testé.
+- **Écarté** :
+  - Une régression pour estimer les poids : trop de degrés de liberté pour 50 mois, et
+    des poids difficiles à expliquer.
+  - Une validation glissante (*walk-forward*) sur plusieurs fenêtres : plus robuste, mais
+    elle demande de recalibrer à chaque fenêtre. Une seule séparation apprentissage/test,
+    avec un test qui contient une baisse, suffit pour ce projet.
+- **Limites** : sur 10 ans, le biais du survivant est plus fort (univers actuel). Six
+  titres sont cotés après 2017 et n'entrent dans les données qu'à leur introduction.

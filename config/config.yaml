@@ -165,8 +165,9 @@ fees:
 
 # ============================== BACKTEST PARAMETERS ==============================
 backtest:
-  # Date Range (tronquée automatiquement à la dernière cotation disponible)
-  start_date: "2024-01-01"
+  # Période de TEST, hors échantillon : aucun réglage n'est choisi sur ces dates (DEC-18).
+  # Tronquée automatiquement à la dernière cotation disponible.
+  start_date: "2022-01-01"
   end_date: "2026-12-31"
 
   # Les fondamentaux Yahoo sont ceux d'aujourd'hui : les activer en backtest introduit
@@ -180,7 +181,18 @@ backtest:
 
   # Data Download (journalier, prix ajustés des dividendes et splits)
   data:
-    period: "5y"           # Historique téléchargé (>= 200 séances avant start_date pour la SMA200)
+    period: "10y"          # Historique téléchargé : couvre l'apprentissage (calibration.*) et le test
+
+# ============================== CALIBRATION ==============================
+# Période d'APPRENTISSAGE, utilisée par src/calibrate.py pour choisir les composantes du
+# score et calibrer la confiance (DEC-18). Elle précède la période de test (backtest.*).
+calibration:
+  train_start: "2017-07-01"   # 1re date avec 200 séances d'historique (données dès 2016-09)
+  train_end: "2021-09-30"     # Purge : le rendement à 3 mois se termine avant le test (2022)
+  horizon_days: 63            # Horizon du rendement mesuré : ~3 mois de séances
+  # Règle fixée AVANT d'observer les résultats : une composante garde son poids si son
+  # effet sur la période d'apprentissage a le signe attendu et un t >= min_t ; sinon 0.
+  min_t: 1.0
 
 # ============================== DATA QUALITY ==============================
 data_quality:

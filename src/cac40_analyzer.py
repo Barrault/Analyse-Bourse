@@ -304,6 +304,9 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
         score += weights['volatility']['high_volatility']
         reasons.append("* Volatilité élevée : Le prix peut beaucoup bouger, prudence.")
 
+    # Score des seuls indicateurs techniques : c'est lui qui est calibré (cf. DEC-20)
+    technical_score = score
+
     # ----------------------- Fundamentals ----------------------- #
     # Chaque métrique (PE, P/B, dividende) contribue UNE seule fois au score ;
     # le ROE implicite ne sert qu'à qualifier le P/B (cf. DEC-06).
@@ -438,6 +441,7 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
 
     return {
         "score": score,
+        "technical_score": technical_score,
         "recommendation": rec,
         "confidence": round(confidence, 2),
         "suggested_amount": suggested_amount,
