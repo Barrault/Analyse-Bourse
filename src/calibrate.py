@@ -4,6 +4,7 @@ Calibrage du score et de la confiance, avec séparation stricte apprentissage / 
     python src/calibrate.py features    # effet de chaque composante (apprentissage)
     python src/calibrate.py calibrate   # table score technique -> probabilité (apprentissage)
     python src/calibrate.py evaluate    # fiabilité de cette table (test, hors échantillon)
+    python src/calibrate.py dividend    # le rendement du dividende prédit-il la performance ?
 
 Mesure commune : le rendement du titre relatif à l'ETF CAC 40 sur `calibration.horizon_days`
 séances, de l'ouverture du jour du signal à la clôture de fin d'horizon. Voir DEC-18 à DEC-22.
@@ -185,13 +186,51 @@ def cmd_evaluate(backtester: Backtester):
     print(f"Corrélation de rang score ↔ rendement relatif : {df.technical_score.rank().corr(df.excess.rank()):+.3f}")
 
 
+def dividend_yield_history(ticker: str) -> pd.Series:
+    """Rendement du dividende (%) sur 12 mois glissants, tel que connu chaque jour : dividendes
+    détachés dans les 365 jours précédents / cours brut (non ajusté des dividendes)."""
+    import yfinance as yf
+    history = yf.Ticker(ticker).history(period=config.get('backtest.data.period'), auto_adjust=False)
+    if history.empty:
+        return pd.Series(dtype=float)
+    history.index = history.index.tz_localize(None).normalize()
+    trailing = history['Dividends'].rolling('365D').sum()
+    return trailing / history['Close'] * 100
+
+
+def cmd_dividend(backtester: Backtester):
+    """Le rendement du dividende prédit-il le rendement relatif ? (DEC-24)"""
+    horizon, min_t = config.get('calibration.horizon_days'), config.get('calibration.min_t')
+    yields = {t: dividend_yield_history(t) for t in backtester.indicators}
+    buy = config.get('scoring.thresholds.buy')
+    periods = {"Apprentissage": (config.get('calibration.train_start'), config.get('calibration.train_end')),
+               "Test": (config.get('backtest.start_date'), config.get('backtest.end_date'))}
+    for label, (start, end) in periods.items():
+        df = observations(backtester, start, end, horizon)
+        # Rendement connu la veille du signal (pas d'anticipation)
+        df["dy"] = [yields[t][yields[t].index < d].iloc[-1] if (yields[t].index < d).any() else np.nan
+                    for t, d in zip(df.ticker, df.date)]
+        df = df.dropna(subset=["dy"])
+        df["dy_rank"] = df.groupby("date")["dy"].rank(pct=True)
+        print(f"\n{label} {start} → {end} : {len(df)} observations, {df.date.nunique()} mois")
+        top = df["dy_rank"] > 2 / 3
+        spread, t_stat, months = monthly_spread(df, top)
+        print(f"  Tous titres — tiers au plus haut rendement vs reste : {spread:+.2f} pts de rang (t = {t_stat:.1f})"
+              f" → {'garder' if keep_component(spread, t_stat, +1, min_t) else 'écarter'}")
+        buys = df[df.technical_score >= buy].copy()
+        buys["dy_rank"] = buys.groupby("date")["dy"].rank(pct=True)
+        spread_b, t_b, months_b = monthly_spread(buys, buys["dy_rank"] > 0.5)
+        print(f"  Parmi les ACHAT ({len(buys)}) — moitié au plus haut rendement vs autre : "
+              f"{spread_b:+.2f} pts de rang (t = {t_b:.1f}, {months_b} mois)")
+
+
 def main():
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("command", choices=["features", "calibrate", "evaluate"])
+    parser.add_argument("command", choices=["features", "calibrate", "evaluate", "dividend"])
     command = parser.parse_args().command
     backtester = load()
-    {"features": cmd_features, "calibrate": cmd_calibrate, "evaluate": cmd_evaluate}[command](backtester)
+    {"features": cmd_features, "calibrate": cmd_calibrate, "evaluate": cmd_evaluate, "dividend": cmd_dividend}[command](backtester)
 
 
 if __name__ == "__main__":

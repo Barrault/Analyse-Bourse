@@ -617,3 +617,33 @@ Fondamentaux désactivés, capital de 20 000 €, runs du 2026-09-29.
 Fusion dans `master`. La nouvelle version est à la fois plus honnête (confiance mesurée,
 données contrôlées) et meilleure hors échantillon. Prochaine étape recommandée : suivre
 l'écart avec l'ETF en conditions réelles avant d'engager davantage de capital.
+
+---
+
+## DEC-23 — Test du rendement du dividende : écarté (effet instable)
+
+- **Contexte** : les fondamentaux n'ont pas d'historique gratuit, sauf les dividendes
+  versés. Avec les cours bruts, on peut reconstituer le rendement sur 12 mois glissants
+  tel qu'il était connu à chaque date. C'est le seul critère « value » testable.
+- **Méthode** : `python src/calibrate.py dividend`. On compare le tiers des titres au plus
+  fort rendement au reste, en rang du rendement relatif à 3 mois, avec la règle de DEC-18
+  fixée à l'avance (bon signe et t ≥ 1 sur l'apprentissage).
+- **Résultat** :
+
+  | Période | Tiers au plus fort dividende vs reste | Parmi les ACHAT (moitié haute vs basse) |
+  |---|---:|---:|
+  | Apprentissage 2017-07 → 2021-09 | −1,9 (t = −1,5) | −2,0 (t = −1,2) |
+  | Test 2022-01 → 2026-09 | +5,5 (t = 5,2) | +4,6 (t = 2,5) |
+
+- **Décision** : **écarté**, conformément à la règle. L'effet s'inverse d'une période à
+  l'autre. Le dividende a sous-performé dans la décennie de taux bas, puis fortement
+  surperformé depuis la remontée des taux de 2022. C'est le comportement connu du facteur
+  « value » (sa « décennie perdue » des années 2010, puis son rebond).
+- **Pourquoi ne pas le garder malgré le test favorable** : ce serait choisir en regardant
+  la période de test, c'est-à-dire exactement le biais que le protocole doit empêcher. Le
+  test montre surtout que ce critère **dépend du régime de marché**. Le garder reviendrait
+  à parier que le régime de 2022-2026 va durer.
+- **Conséquence pour E/P et B/P** : ils relèvent du même facteur « value » et ne sont pas
+  testables. Si le seul représentant mesurable est instable, rien ne justifie de leur donner
+  un rôle dans la décision, même comme simple départage. Le score composite « value »
+  envisagé n'est donc pas construit (DEC-24).

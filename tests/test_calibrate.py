@@ -47,3 +47,25 @@ def test_forward_excess_return_is_measured_against_the_benchmark(prices, no_fund
     date = stock.index[100]
     assert forward_excess_return(backtester, "A.PA", date, stock.loc[date, "Open"], 63) == pytest.approx(0)
     assert np.isnan(forward_excess_return(backtester, "A.PA", stock.index[-10], 1.0, 63))
+
+
+def test_dividend_yield_is_trailing_12_months_over_raw_price(monkeypatch):
+    import calibrate
+    index = pd.date_range("2024-01-01", periods=400, freq="D", tz="Europe/Paris")
+    history = pd.DataFrame({"Close": 50.0, "Dividends": 0.0}, index=index)
+    history.loc[index[10], "Dividends"] = 1.0
+    history.loc[index[200], "Dividends"] = 1.5
+
+    class FakeTicker:
+        def __init__(self, _):
+            pass
+
+        def history(self, **_):
+            return history
+
+    import yfinance
+    monkeypatch.setattr(yfinance, "Ticker", FakeTicker)
+    dy = calibrate.dividend_yield_history("X.PA")
+    assert dy.iloc[5] == 0.0
+    assert dy.iloc[250] == pytest.approx((1.0 + 1.5) / 50 * 100)   # deux dividendes dans les 365 j
+    assert dy.iloc[380] == pytest.approx(1.5 / 50 * 100)           # le premier est sorti de la fenêtre
