@@ -247,3 +247,17 @@ de la branche `fix/audit-corrections`.
   portefeuille sur les titres les plus chers.
 - **Conséquences** : les titres dont le cours dépasse `max_order_amount` (Hermès…) ne sont
   jamais achetés avec la config actuelle. Relever `max_order_amount` si on veut les inclure.
+
+---
+
+## DEC-11 — Une seule définition du PnL d'un aller-retour (B5)
+
+- **Contexte** : le win rate du résumé comparait la vente **brute** à l'achat frais inclus,
+  tandis que le tableau par confiance comparait des montants **nets**. Une même vente
+  pouvait donc être un gain dans l'un et une perte dans l'autre.
+- **Décision** : `closed_trades()` apparie chaque vente au dernier achat du même titre et
+  calcule `PnL = produit net de frais de vente − coût frais d'achat inclus`. Le win rate et
+  le résumé par confiance en dérivent tous les deux. Chaque aller-retour porte aussi son
+  motif de sortie (`exit_reason`), utilisé par le stop-loss (DEC-12).
+- **Justification** : le PnL net est ce qui arrive réellement sur le compte. Un gain brut
+  mangé par les frais n'en est pas un.

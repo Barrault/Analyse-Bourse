@@ -464,53 +464,54 @@ class Backtester:
             return "0.60-0.80"
         return "0.80-1.00"
 
-    def get_confidence_pnl_summary(self):
-        """Retourne un résumé PnL par bucket de confiance d'achat."""
-        sell_trades = [t for t in self.trades if t.side == "SELL" and t.entry_confidence is not None]
-        buckets = {}
-        last_buy_by_ticker = {}
+    def closed_trades(self) -> List[Dict]:
+        """Allers-retours clôturés : chaque vente appariée au dernier achat du même titre.
 
+        PnL NET = produit de vente après frais − coût d'achat frais inclus. C'est l'unique
+        définition utilisée par le win rate et par le résumé par confiance (cf. DEC-11).
+        """
+        round_trips = []
+        open_buys: Dict[str, Trade] = {}
         for trade in self.trades:
             if trade.side == "BUY":
-                last_buy_by_ticker[trade.ticker] = trade
-            elif trade.side == "SELL" and trade.ticker in last_buy_by_ticker:
-                buy_trade = last_buy_by_ticker.get(trade.ticker)
-                buy_value = buy_trade.net_cost
-                sell_value = trade.net_cost
-                pnl = sell_value - buy_value
-                pnl_pct = (pnl / buy_value * 100) if buy_value > 0 else 0.0
+                open_buys[trade.ticker] = trade
+            elif trade.side == "SELL" and trade.ticker in open_buys:
+                buy = open_buys.pop(trade.ticker)
+                pnl = trade.net_cost - buy.net_cost
+                round_trips.append({
+                    "ticker": trade.ticker,
+                    "buy_date": buy.date,
+                    "sell_date": trade.date,
+                    "exit_reason": trade.recommendation,
+                    "entry_confidence": trade.entry_confidence,
+                    "cost": buy.net_cost,
+                    "proceeds": trade.net_cost,
+                    "pnl": pnl,
+                    "pnl_pct": pnl / buy.net_cost * 100 if buy.net_cost > 0 else 0.0,
+                })
+        return round_trips
 
-                bucket = self._confidence_bucket(trade.entry_confidence)
-                if bucket not in buckets:
-                    buckets[bucket] = {
-                        "label": bucket,
-                        "trades": 0,
-                        "wins": 0,
-                        "losses": 0,
-                        "win_rate": 0.0,
-                        "avg_pnl": 0.0,
-                        "avg_pnl_pct": 0.0,
-                    }
-
-                bucket_summary = buckets[bucket]
-                bucket_summary["trades"] += 1
-                bucket_summary["avg_pnl"] += pnl
-                bucket_summary["avg_pnl_pct"] += pnl_pct
-                if pnl > 0:
-                    bucket_summary["wins"] += 1
-                else:
-                    bucket_summary["losses"] += 1
+    def get_confidence_pnl_summary(self) -> List[Dict]:
+        """Retourne un résumé PnL par bucket de confiance d'achat."""
+        buckets: Dict[str, List[Dict]] = {}
+        for round_trip in self.closed_trades():
+            buckets.setdefault(self._confidence_bucket(round_trip["entry_confidence"]), []).append(round_trip)
 
         summary = []
-        for bucket_name in ["0.00-0.20", "0.20-0.40", "0.40-0.60", "0.60-0.80", "0.80-1.00"]:
-            if bucket_name in buckets:
-                bucket_summary = buckets[bucket_name]
-                trades = bucket_summary["trades"]
-                bucket_summary["win_rate"] = (bucket_summary["wins"] / trades * 100) if trades else 0.0
-                bucket_summary["avg_pnl"] = (bucket_summary["avg_pnl"] / trades) if trades else 0.0
-                bucket_summary["avg_pnl_pct"] = (bucket_summary["avg_pnl_pct"] / trades) if trades else 0.0
-                summary.append(bucket_summary)
-
+        for label in ["0.00-0.20", "0.20-0.40", "0.40-0.60", "0.60-0.80", "0.80-1.00", "N/A"]:
+            trips = buckets.get(label)
+            if not trips:
+                continue
+            wins = sum(1 for t in trips if t["pnl"] > 0)
+            summary.append({
+                "label": label,
+                "trades": len(trips),
+                "wins": wins,
+                "losses": len(trips) - wins,
+                "win_rate": wins / len(trips) * 100,
+                "avg_pnl": sum(t["pnl"] for t in trips) / len(trips),
+                "avg_pnl_pct": sum(t["pnl_pct"] for t in trips) / len(trips),
+            })
         return summary
 
     def print_summary(self):
@@ -519,29 +520,16 @@ class Backtester:
             print("Aucun historique de portefeuille")
             return
 
-        first = self.portfolio_history[0]
         last = self.portfolio_history[-1]
 
         total_trades = len(self.trades)
         buy_trades = [t for t in self.trades if t.side == "BUY"]
         sell_trades = [t for t in self.trades if t.side == "SELL"]
-
         total_fees = sum(t.fees for t in self.trades)
 
-        # Calculer win rate (ventes avec profit)
-        wins = 0
-        losses = 0
-        for sell in sell_trades:
-            # Trouver le buy correspondant
-            buys_for_ticker = [t for t in buy_trades if t.ticker == sell.ticker and t.date < sell.date]
-            if buys_for_ticker:
-                last_buy = buys_for_ticker[-1]
-                sell_value = sell.amount
-                buy_value = last_buy.amount + last_buy.fees
-                if sell_value > buy_value:
-                    wins += 1
-                else:
-                    losses += 1
+        round_trips = self.closed_trades()
+        wins = sum(1 for t in round_trips if t["pnl"] > 0)
+        losses = len(round_trips) - wins
 
         win_rate = (wins / (wins + losses) * 100) if (wins + losses) > 0 else 0
 
