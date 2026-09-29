@@ -5,9 +5,9 @@ Simule les trades réels avec frais Bourse Direct 2024-2026
 # -*- coding: utf-8 -*-
 import sys
 from dataclasses import dataclass
-from datetime import timedelta
 from typing import Dict, List, Optional
 
+import numpy as np
 import pandas as pd
 import yfinance as yf
 
@@ -36,6 +36,9 @@ def calculate_fees(amount: float) -> float:
             return fee_tier['fixed_fee']
 
     raise ValueError("fees.structure doit se terminer par un palier 'max_amount: null'")
+
+# Fréquences de rebalance (config trading.rebalance.frequency) -> périodes pandas
+REBALANCE_FREQUENCIES = {"week": "W", "month": "M", "quarter": "Q"}
 
 # ----------------------- Portfolio & Trade Tracking ----------------------- #
 
@@ -88,6 +91,10 @@ class Backtester:
         self.initial_cash = initial_cash or trading_params['initial_cash']
         self.min_order_amount = min_order_amount or trading_params['min_order_amount']
 
+        # Les fondamentaux Yahoo sont ceux d'AUJOURD'HUI : les utiliser pour noter une date
+        # passée est un biais d'anticipation. Désactivés par défaut (cf. DEC-09).
+        self.use_fundamentals = bool(config.get('backtest.use_fundamentals'))
+
         self.cash = self.initial_cash
         self.positions: Dict[str, Position] = {}
         self.trades: List[Trade] = []
@@ -98,8 +105,14 @@ class Backtester:
         self.indicators: Dict[str, pd.DataFrame] = {}
         self._fundamentals_cache: Dict[str, Dict[str, Optional[float]]] = {}
 
-    def load_data(self, tickers: List[str], period: str = "3y"):
-        """Télécharge les données historiques pour tous les tickers."""
+    def load_data(self, tickers: List[str], period: Optional[str] = None):
+        """Télécharge les données historiques journalières pour tous les tickers.
+
+        Prix ajustés (auto_adjust=True) : dividendes et splits sont réintégrés dans la série,
+        sinon un détachement de dividende ressemblerait à une chute de cours et le dividende
+        ne serait jamais crédité au portefeuille.
+        """
+        period = period or config.get('backtest.data.period')
         print(f"📥 Téléchargement des données {period} pour {len(tickers)} actions...")
         for i, ticker in enumerate(tickers, 1):
             try:
@@ -134,17 +147,27 @@ class Backtester:
         return self._fundamentals_cache[ticker]
 
     def analyze_on_date(self, ticker: str, date: pd.Timestamp) -> Optional[Dict]:
-        """Analyse un ticker à une date spécifique."""
+        """Signal disponible à l'ouverture de `date`, exécutable au cours d'ouverture de `date`.
+
+        Le signal n'utilise que les séances STRICTEMENT antérieures à `date` : on ne peut
+        pas connaître la clôture du jour au moment de passer l'ordre (cf. DEC-09).
+        Renvoie None si le titre ne cote pas ce jour-là.
+        """
         df = self.indicators.get(ticker)
-        if df is None:
+        prices = self.all_data.get(ticker)
+        if df is None or prices is None or date not in prices.index:
             return None
 
-        # Trouver la dernière donnée avant ou à la date
-        df_up_to_date = df[df.index <= date]
+        open_price = float(prices.loc[date, 'Open'])
+        if not np.isfinite(open_price) or open_price <= 0:
+            return None
+
+        df_up_to_date = df[df.index < date]
         if df_up_to_date.empty:
             return None
 
-        snap = build_snapshot(df_up_to_date, self._fundamentals(ticker))
+        fundamentals = self._fundamentals(ticker) if self.use_fundamentals else {}
+        snap = build_snapshot(df_up_to_date, fundamentals)
 
         # Vérifier que tous les indicateurs essentiels sont valides
         if snap.close is None or snap.sma200 is None:
@@ -156,30 +179,30 @@ class Backtester:
             "ticker": ticker,
             "company_name": NOMS_ENTREPRISES.get(ticker, ticker),
             "date": date,
-            "price": snap.close,
+            "price": open_price,
+            "signal_date": snap.date,
             "recommendation": outcome["recommendation"],
             "confidence": outcome["confidence"],
             "score": outcome["score"],
             "snapshot": snap
         }
 
-    def get_trading_days(self, start_date: str = "2024-01-01",
-                        end_date: str = "2026-12-31",
-                        frequency: str = "month") -> List[pd.Timestamp]:
-        """Retourne les dates de rebalance (1er jour trading de chaque période)."""
-        dates = pd.date_range(start=start_date, end=end_date, freq="MS")
-        trading_dates = []
+    def rebalance_dates(self, start_date: str, end_date: str, frequency: str) -> List[pd.Timestamp]:
+        """Premier jour de cotation de chaque période, d'après le calendrier réel des données.
 
-        for date in dates:
-            # Trouver le premier jour de trading après cette date
-            search_date = date
-            for _ in range(7):  # Chercher dans les 7 prochains jours
-                if search_date.weekday() < 5:  # 0-4 = lun-ven
-                    trading_dates.append(search_date)
-                    break
-                search_date += timedelta(days=1)
+        Les jours fériés (sans cotation) et les dates postérieures à la dernière cotation
+        disponible sont ainsi exclus par construction (cf. DEC-09).
+        """
+        if frequency not in REBALANCE_FREQUENCIES:
+            raise ValueError(f"trading.rebalance.frequency inconnue : {frequency!r} "
+                             f"(attendu : {', '.join(REBALANCE_FREQUENCIES)})")
+        if not self.all_data:
+            return []
 
-        return trading_dates
+        calendar = pd.DatetimeIndex(sorted(set().union(*(df.index for df in self.all_data.values()))))
+        calendar = calendar[(calendar >= pd.Timestamp(start_date)) & (calendar <= pd.Timestamp(end_date))]
+        periods = calendar.to_period(REBALANCE_FREQUENCIES[frequency])
+        return list(pd.Series(calendar, index=calendar).groupby(periods).first())
 
     def execute_rebalance(self, rebalance_date: pd.Timestamp,
                          tickers: List[str]):
@@ -398,14 +421,18 @@ class Backtester:
         print(f"📈 Période: {start_date} à {end_date}")
         print(f"💰 Capital initial: {self.initial_cash}€")
         print(f"📊 Actions: {len(tickers)}")
-        print(f"📌 Rebalance: Mensuelle (1er jour trading)")
+        frequency = config.get('trading.rebalance.frequency')
+        print(f"📌 Rebalance: {frequency} (1er jour de cotation, ordres au cours d'ouverture)")
+        print(f"📌 Fondamentaux: {'activés (biais d anticipation !)' if self.use_fundamentals else 'désactivés'}")
 
-        # Télécharger les données (charger 5 ans pour avoir assez d'historique)
-        self.load_data(tickers, period="5y")
+        self.load_data(tickers)
 
         # Obtenir les dates de rebalance
-        rebalance_dates = self.get_trading_days(start_date, end_date, "month")
-        print(f"\n📅 {len(rebalance_dates)} rebalances prévues")
+        rebalance_dates = self.rebalance_dates(start_date, end_date, frequency)
+        if not rebalance_dates:
+            print("Aucune date de rebalance : pas de données sur la période demandée.")
+            return
+        print(f"\n📅 {len(rebalance_dates)} rebalances, du {rebalance_dates[0].date()} au {rebalance_dates[-1].date()}")
 
         # Boucle principale
         for i, rebalance_date in enumerate(rebalance_dates, 1):

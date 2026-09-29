@@ -140,10 +140,9 @@ trading:
     max_confidence_for_max_spend: 1.0  # Confiance >= ceci -> max_order_amount
     margin_buffer: 200                 # Trésorerie toujours conservée
 
-  # Rebalancing
+  # Rebalancing : 1er jour de cotation de chaque période, ordres au cours d'ouverture
   rebalance:
-    frequency: "month"  # Options: "month", "week", "quarter"
-    day_of_month: 1     # 1st day of month, adjusted to first trading day
+    frequency: "month"  # Options: "week", "month", "quarter"
 
 # ============================== FEES (Bourse Direct) ==============================
 fees:
@@ -161,15 +160,17 @@ fees:
 
 # ============================== BACKTEST PARAMETERS ==============================
 backtest:
-  # Date Range
+  # Date Range (tronquée automatiquement à la dernière cotation disponible)
   start_date: "2024-01-01"
   end_date: "2026-12-31"
 
-  # Data Download
+  # Les fondamentaux Yahoo sont ceux d'aujourd'hui : les activer en backtest introduit
+  # un biais d'anticipation (une date de 2024 notée avec des résultats de 2026).
+  use_fundamentals: false
+
+  # Data Download (journalier, prix ajustés des dividendes et splits)
   data:
-    period: "5y"           # Historical period to download
-    interval: "1d"         # Daily data
-    auto_adjust: true      # Automatically adjust OHLC
+    period: "5y"           # Historique téléchargé (>= 200 séances avant start_date pour la SMA200)
 
 # ============================== OUTPUT & LOGGING ==============================
 output:

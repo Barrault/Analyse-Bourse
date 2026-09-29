@@ -189,3 +189,42 @@ de la branche `fix/audit-corrections`.
   supprimer l'essentiel du coût.
 - **Conséquences** : `add_price_data()` permet aussi d'injecter des données synthétiques,
   ce qui rend le moteur testable sans réseau (fixtures `prices` et `no_fundamentals`).
+
+---
+
+## DEC-09 — Suppression des biais d'anticipation (A2, A3, B2, C1 partiel)
+
+- **Contexte** : trois fuites d'information du futur.
+  1. A2 : les dates de rebalance étaient générées jusqu'au 31/12/2026, et la dernière
+     cotation connue était réutilisée pour les dates futures. Le log du 2026-07-09 contient
+     4 rebalances fictives (septembre à décembre 2026).
+  2. B2 : le signal était calculé avec la clôture du jour J et exécuté… à cette même
+     clôture. Or un ordre ne peut pas utiliser une information qui n'existe qu'à la fin de
+     la séance où il est passé. Le 1er janvier (bourse fermée) était en outre traité comme
+     un jour ouvré.
+  3. A3 : les fondamentaux utilisés pour une date de 2024 étaient ceux publiés en 2026.
+- **Décision** :
+  1. Calendrier = **jours réellement cotés** dans les données (`rebalance_dates`) : les
+     jours fériés et les dates futures sont exclus par construction. La fréquence
+     `trading.rebalance.frequency` (week/month/quarter), jusque-là ignorée, est câblée.
+  2. Signal calculé sur les séances **strictement antérieures** à J et exécuté au **cours
+     d'ouverture de J**. Un titre qui ne cote pas en J n'est pas traité ce jour-là.
+     La valorisation du portefeuille reste faite à la clôture de J.
+  3. `backtest.use_fundamentals: false` par défaut : le backtest mesure le score
+     technique seul. L'analyse du jour (`cac40_analyzer.py`) utilise toujours les
+     fondamentaux, puisqu'il n'y a pas d'anticipation au présent.
+  - `backtest.data.period` est câblé. `interval` et `auto_adjust` sont retirés de la
+    config : le moteur suppose des données journalières, et les prix ajustés sont
+    **nécessaires**, faute de quoi un détachement de dividende ressemblerait à une chute
+    de cours et le dividende ne serait jamais crédité.
+- **Écarté** :
+  - Fondamentaux historiques point-in-time : Yahoo ne les fournit pas gratuitement. Une
+    source payante (FactSet, Refinitiv…) serait nécessaire, ce qui dépasse le périmètre.
+  - Exécution à la clôture de J+1 plutôt qu'à l'ouverture de J : cela retarde le signal
+    d'un jour de plus sans réalisme supplémentaire (un particulier passe ses ordres le
+    matin).
+- **Conséquences** : le backtest par défaut n'évalue plus la stratégie complète mais sa
+  partie technique. C'est le prix d'un chiffre honnête. `use_fundamentals: true` reste
+  possible pour comparer, en connaissance du biais, qui est aussi affiché en tête du run.
+  Tests : `test_signal_is_unchanged_when_same_day_and_future_data_change` falsifie la
+  clôture du jour et le futur, et vérifie que le signal ne bouge pas.
