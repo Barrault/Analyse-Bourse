@@ -647,3 +647,45 @@ l'écart avec l'ETF en conditions réelles avant d'engager davantage de capital.
   testables. Si le seul représentant mesurable est instable, rien ne justifie de leur donner
   un rôle dans la décision, même comme simple départage. Le score composite « value »
   envisagé n'est donc pas construit (DEC-24).
+
+---
+
+## DEC-24 — Décision sur le score technique seul ; fondamentaux en information et en filtre
+
+- **Contexte** :
+  - L'analyse du jour ajoutait ~10 règles fondamentales au score, avec des poids fixés à la
+    main (−2 pour un PE > 22, +1,5 pour une décote…). Elle ne suivait donc pas la stratégie
+    mesurée par le backtest (technique seule). Le 2026-09-29, elle transformait 7 ACHAT
+    techniques en NEUTRE sans qu'on sache si c'était utile.
+  - Ces règles ne sont pas testables (pas d'historique gratuit), et le seul fondamental
+    testable, le dividende, a un effet instable (DEC-23).
+- **Décision**, alignée sur les pratiques recommandées quand un signal n'est pas mesurable
+  (poids égaux ou nuls plutôt que des poids « à l'intuition », filtres plutôt que poids,
+  influence plafonnée) :
+  1. **La recommandation ne dépend que du score technique.** L'analyse du jour applique
+     désormais exactement la stratégie évaluée hors échantillon (DEC-22).
+  2. **Un seul filtre fondamental** (`fundamentals.exclude_loss_making: true`) : un ACHAT
+     sur une entreprise en perte (BPA < 0) devient NEUTRE. C'est un filtre de prudence
+     plutôt qu'un pari de rendement. Il est cohérent avec le facteur « rentabilité »
+     documenté en finance (les entreprises non rentables ont eu des rendements moyens plus
+     faibles), et son pire effet est de rater quelques rebonds. Il est désactivable.
+  3. **PE, P/B et dividende affichés pour information** sur une ligne, pour garder
+     l'utilisateur maître d'un veto manuel.
+  4. Suppression de `scoring.fundamentals` (poids, tranches, seuils) et des alertes Value
+     Support / Panic Sell qui en dépendaient.
+- **Écarté** :
+  - *Score composite « value »* (rangs E/P, B/P et dividende au sein du secteur, pour
+    départager les ACHAT) : c'était ma recommandation initiale, mais le test du dividende
+    (DEC-23) montre que ce facteur a changé de sens entre 2017-2021 et 2022-2026. Même
+    réduit à un simple départage, l'introduire reviendrait à parier sur le régime de marché
+    actuel, sans mesure pour le justifier.
+  - *Garder les anciennes règles en les « adoucissant »* : ce serait toujours des poids
+    arbitraires, simplement plus petits.
+- **Conséquences** :
+  - Le backtest est inchangé (il n'utilisait déjà que le technique), sauf si
+    `use_fundamentals: true` : dans ce cas, le filtre s'applique avec les BPA actuels, ce
+    qui introduit un biais d'anticipation, signalé en tête du run.
+  - Le 2026-09-29, l'analyse du jour donne 14 ACHAT : les 15 signaux techniques, moins
+    North Atlantic Energies (en perte).
+- **Seul le filtre « perte » n'est pas vérifié par les données** : il faudra le juger à
+  l'usage, en suivi réel.

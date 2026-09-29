@@ -76,52 +76,6 @@ scoring:
     low_volatility: 0.0   # ATR/Close < threshold  écart +3.3  t=0.9  (était 0.8)
     high_volatility: 0.0  # ATR/Close >= threshold (était -0.8)
 
-  # Fundamental Analysis Weights
-  fundamentals:
-    # PE Ratio Analysis (une seule contribution au score)
-    pe:
-      negative: -2.0      # Entreprise en perte (BPA < 0) - aussi marquée "toxique"
-      very_low: -0.5      # PE < pe_very_low (piège de valeur possible)
-      low: 0.8            # PE <= pe_low_max, avec tendance haussière
-      low_weak: -0.5      # PE <= pe_low_max, tendance faible
-      moderate: -0.5      # PE <= pe_moderate_max
-      high: -2.0          # PE > pe_moderate_max
-
-    # Price-to-Book Analysis (qualifié par le ROE implicite = P/B / PE)
-    pb:
-      very_low_good_roe: 0.5    # P/B < pb_low avec ROE > roe_min
-      very_low_bad_roe: -1.0    # P/B < pb_low avec ROE faible
-      moderate_good_roe: 0.5    # P/B <= pb_moderate_max avec ROE >= roe_good
-      moderate_bad_roe: -0.5    # P/B <= pb_moderate_max avec ROE faible
-      high: -1.5                # P/B > pb_moderate_max (cher, mais pas "toxique")
-
-    # Cross PE/PB Sanity Checks
-    expensive_both: -2.0   # PE > expensive_pe ET P/B > expensive_pb
-    cheap_with_growth: 1.5 # PE < cheap_pe ET P/B < cheap_pb ET cours > SMA200
-
-    # Dividend Yield (entre medium et high : neutre, pas de points)
-    dividend:
-      high_yield: 1.0      # DY >= high_yield_pct
-      no_dividend: -0.5    # Aucun dividende versé sur 12 mois
-
-    # Seuils des tranches ci-dessus
-    limits:
-      pe_very_low: 8
-      pe_low_max: 14
-      pe_moderate_max: 22
-      pb_low: 1.0
-      pb_moderate_max: 2.5
-      roe_min: 10          # % - ROE implicite minimal pour un P/B < pb_low
-      roe_good: 12         # % - ROE implicite pour un P/B normal
-      expensive_pe: 20
-      expensive_pb: 3
-      cheap_pe: 12
-      cheap_pb: 1.2
-      high_yield_pct: 5
-      medium_yield_pct: 2
-      value_support_pe: 11   # VENTE bridée si PE < ... et P/B < ... (titre déjà bradé)
-      value_support_pb: 1.1
-
   # Confiance = probabilité historique qu'un titre batte l'ETF CAC 40 à 3 mois, selon la
   # tranche de score TECHNIQUE (DEC-20). Produit par `python src/calibrate.py calibrate`
   # sur la période d'apprentissage 2017-07 -> 2021-09 (4 538 observations), lissé par
@@ -137,6 +91,12 @@ scoring:
     buy: 4                 # Score >= this for ACHAT (stricter: fewer false signals)
     sell: -2               # Score <= this for VENTE (stronger signal to exit early)
     # Everything between buy and sell is NEUTRE
+
+# ============================== FUNDAMENTALS ==============================
+# Aucun historique gratuit : les fondamentaux ne pèsent pas dans le score (DEC-24).
+# Ils sont affichés pour information ; seul ce filtre de prudence agit sur la décision.
+fundamentals:
+  exclude_loss_making: true   # Pas d'ACHAT si le BPA est négatif (l'ACHAT devient NEUTRE)
 
 # ============================== TRADING PARAMETERS ==============================
 trading:
@@ -219,10 +179,10 @@ output:
 # ============================== CALIBRATION HINTS ==============================
 # 1. SEUILS : baisser scoring.thresholds.buy (ex: 3) donne plus de signaux ACHAT ;
 #    baisser scoring.thresholds.sell (ex: -4) donne moins de signaux VENTE.
-# 2. FONDAMENTAUX : pénalités PE/P/B plus fortes = moins de valeurs chères.
-#    Sans effet en backtest tant que backtest.use_fundamentals = false.
-# 3. TENDANCE vs MOMENTUM : poids de tendance élevés = suivi de tendance ;
-#    pénalités RSI/Bollinger élevées = approche contrariante.
+# 2. POIDS TECHNIQUES : ne réactiver une règle à 0 que si `python src/calibrate.py
+#    features` montre un effet sur la période d'APPRENTISSAGE (jamais sur le test).
+# 3. CONFIANCE : après tout changement de poids, relancer `calibrate` puis `evaluate`
+#    et reporter la nouvelle table dans scoring.confidence_calibration.
 # 4. TAILLE DES ORDRES : order_amount par achat ; avec un capital de 20 000 € et
 #    1 000 € par ordre, il faut ~20 positions pour être investi.
 # 5. Toujours comparer au benchmark (backtest.benchmark) avant de conclure.
