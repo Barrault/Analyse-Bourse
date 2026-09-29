@@ -91,6 +91,13 @@ de la branche `fix/audit-corrections`.
 - **Écarté** : remplacer `DualLogger` par le module `logging`. Ici la sortie console **est**
   le rapport destiné à l'utilisateur, pas un journal technique. `logging` ajouterait des
   préfixes et une configuration sans rien apporter.
+- **Correctif ultérieur** : le premier commit de cette décision laissait l'écriture du JSON
+  sur les anciennes variables (`NameError` en fin de run). Le script de modification
+  n'avait pas vérifié que son remplacement avait eu lieu, et aucun test ne couvrait
+  l'export. Le problème a été détecté en lançant le vrai backtest de bout en bout. Depuis :
+  `build_results()` et `save_results()` sont des fonctions testées
+  (`tests/test_run_full_backtest.py`), et toute exception est tracée dans le journal avant
+  la restauration de stderr.
 
 ---
 
