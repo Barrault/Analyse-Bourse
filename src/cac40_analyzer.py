@@ -159,14 +159,12 @@ def prepare_indicators(df: pd.DataFrame) -> Optional[pd.DataFrame]:
 
 # ----------------------- Scoring & Recommendation ----------------------- #
 
-def signal_confidence(distance: float) -> float:
-    """Confiance d'un signal ACHAT/VENTE selon sa distance au seuil franchi.
-
-    0.5 exactement au seuil, puis linéaire jusqu'à 1.0 à `scoring.confidence_scale`
-    points au-delà : la confiance continue de distinguer les signaux forts (cf. DEC-07).
-    """
-    scale = config.get('scoring.confidence_scale')
-    return 0.5 + 0.5 * min(max(distance, 0.0) / scale, 1.0)
+def outperformance_probability(technical_score: float) -> float:
+    """Probabilité historique de battre l'ETF CAC 40 à ~3 mois pour ce niveau de score
+    technique, lue dans la table calibrée sur la période d'apprentissage (cf. DEC-20)."""
+    calibration = config.get('scoring.confidence_calibration')
+    tranche = int(np.searchsorted(calibration['score_edges'], technical_score, side='right'))
+    return float(calibration['probabilities'][tranche])
 
 
 def order_amount_for_confidence(confidence: float, min_order: Optional[float] = None,
@@ -378,38 +376,26 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
     else:
         rec = "NEUTRE"
 
-    buy_threshold = thresholds['buy']
-    sell_threshold = thresholds['sell']
+    # Confiance = probabilité mesurée que la recommandation soit dans le bon sens (DEC-20) :
+    # battre le CAC 40 à 3 mois pour un ACHAT (ou un NEUTRE), le sous-performer pour une VENTE.
+    # Elle ne dépend que du score technique, seul calibrable (pas de fondamentaux historiques).
+    p_outperform = outperformance_probability(technical_score)
+    confidence = 1 - p_outperform if rec == "VENTE" else p_outperform
+    base_rate = config.get('scoring.confidence_calibration.base_rate')
+    reasons.append(f"* Historiquement, {p_outperform:.0%} des titres à ce niveau de score technique ont battu "
+                   f"le CAC 40 à 3 mois (moyenne tous titres : {base_rate:.0%}).")
 
-    if rec == "ACHAT":
-        confidence = signal_confidence(score - buy_threshold)
-        if weak_fundamentals or toxic_fundamentals:
-            confidence = min(confidence, 0.40)
-            reasons.append("- Pénalité de confiance : Achat dégradé en profil spéculatif/technique. Les fondamentaux n'appuient pas la hausse des prix.")
-
+    # Alertes fondamentales : informatives, sans effet chiffré (non calibrables, cf. DEC-20)
+    if rec == "ACHAT" and (weak_fundamentals or toxic_fundamentals):
+        reasons.append("- Attention : les fondamentaux n'appuient pas la hausse des prix (profil spéculatif).")
     elif rec == "VENTE":
-        confidence = signal_confidence(sell_threshold - score)
-
-        # 1. CAS TOXIQUE : Fondamentaux désastreux (Pertes nettes ou bulle sur les actifs)
         if toxic_fundamentals:
-            confidence = max(confidence, 0.90)
-            reasons.append("+ Vente de conviction : La chute technique est confirmée par des fondamentaux toxiques ou une surévaluation critique.")
-
-        # 2. CAS VALUE SUPPORT : Le titre baisse mais il est déjà tellement donné qu'on ne shorte pas à 100%
+            reasons.append("+ Les fondamentaux confirment la vente : l'entreprise est en perte.")
         elif pe is not None and 0 < pe < lim['value_support_pe'] and pb is not None and pb < lim['value_support_pb']:
-            confidence = min(confidence, 0.35)
-            reasons.append("- Alerte Value Support : Les indicateurs techniques sont baissiers, mais l'action est fondamentalement très bon marché (PE et P/B bas). Confiance bridée pour éviter de vendre au plus bas.")
-
-        # 3. CAS PANIC SELL : Excellents fondamentaux, le marché jette le bébé avec l'eau du bain
+            reasons.append("- Alerte Value Support : les indicateurs techniques sont baissiers, mais l'action est déjà très bon marché (PE et P/B bas). Risque de vendre au plus bas.")
         elif not weak_fundamentals:
-            confidence = min(confidence, 0.30)
-            reasons.append("- Alerte Panic Sell : Les indicateurs techniques virent au rouge, mais la qualité fondamentale de l'entreprise reste excellente. Vente à forte conviction injustifiée.")
-    else:
-        mid = (buy_threshold + sell_threshold) / 2
-        spread = max(buy_threshold - sell_threshold, 1)
-        confidence = min(abs(score - mid) / spread, 1.0)
+            reasons.append("- Alerte Panic Sell : les indicateurs techniques virent au rouge, mais la qualité fondamentale de l'entreprise reste bonne. La baisse peut être excessive.")
 
-    confidence = max(confidence, 0.0)
     # Un montant n'a de sens que pour un achat ; même règle que le backtest (cf. DEC-07)
     suggested_amount = round(order_amount_for_confidence(confidence), 2) if rec == "ACHAT" else 0.0
 
@@ -417,7 +403,8 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
         "score": score,
         "technical_score": technical_score,
         "recommendation": rec,
-        "confidence": round(confidence, 2),
+        "confidence": round(confidence, 3),
+        "p_outperform": p_outperform,
         "suggested_amount": suggested_amount,
         "reasons": reasons
     }
@@ -607,7 +594,7 @@ def format_recommendation_summary(company_name: str, recommendation: str,
     price_text = f" | Prix utilisé: {price:.2f}€" if price is not None else ""
     amount_text = f" | Montant suggéré: €{suggested_amount:.2f}" if suggested_amount > 0 else ""
     return (
-        f"{company_name}: {recommendation} | Confiance: {round(float(confidence), 2)}"
+        f"{company_name}: {recommendation} | Confiance: {float(confidence):.1%}"
         f"{amount_text}{price_text} | Action suggérée: {recommendation}"
     )
 

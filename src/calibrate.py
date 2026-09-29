@@ -125,7 +125,7 @@ def calibration_table(df: pd.DataFrame, n_bins: int) -> Dict[str, list]:
     edges = sorted(set(np.round(scores.quantile(np.linspace(0, 1, n_bins + 1)[1:-1]).values, 2)))
     bins = np.searchsorted(edges, scores, side="right")
     beat = df["excess"] > 0
-    freq = [beat[bins == b].mean() for b in range(len(edges) + 1)]
+    freq = [float(beat[bins == b].mean()) for b in range(len(edges) + 1)]
     counts = [int((bins == b).sum()) for b in range(len(edges) + 1)]
     return {"score_edges": [float(e) for e in edges],
             "probabilities": [round(p, 3) for p in isotonic_increasing(freq, counts)],

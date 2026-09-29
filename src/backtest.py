@@ -319,8 +319,9 @@ class Backtester:
         for ticker, position, analysis, reason in sells:
             self._execute_sell(position, analysis["price"], rebalance_date, reason)
 
-        # 5. Exécuter les achats (meilleure confiance en premier)
-        buys_sorted = sorted(buys, key=lambda x: x[1]["confidence"], reverse=True)
+        # 5. Exécuter les achats : meilleure probabilité d'abord, puis meilleur score technique
+        #    (la table calibrée est par tranches, donc les ex-aequo sont fréquents)
+        buys_sorted = sorted(buys, key=lambda x: (x[1]["confidence"], x[1]["technical_score"]), reverse=True)
         for ticker, analysis in buys_sorted:
             self._execute_buy(ticker, analysis, rebalance_date)
 
@@ -566,20 +567,8 @@ class Backtester:
         return pd.concat([start, curve])
 
     def _confidence_bucket(self, confidence: Optional[float]) -> str:
-        """Regroupe une confiance d'achat dans un bucket de 20% pour l'analyse."""
-        if confidence is None:
-            return "N/A"
-
-        conf = float(confidence)
-        if conf < 0.2:
-            return "0.00-0.20"
-        if conf < 0.4:
-            return "0.20-0.40"
-        if conf < 0.6:
-            return "0.40-0.60"
-        if conf < 0.8:
-            return "0.60-0.80"
-        return "0.80-1.00"
+        """Tranche de confiance d'achat = probabilité calibrée de la tranche de score (DEC-20)."""
+        return "N/A" if confidence is None else f"{float(confidence):.3f}"
 
     def closed_trades(self) -> List[Dict]:
         """Allers-retours clôturés : chaque vente appariée au dernier achat du même titre.
@@ -615,10 +604,8 @@ class Backtester:
             buckets.setdefault(self._confidence_bucket(round_trip["entry_confidence"]), []).append(round_trip)
 
         summary = []
-        for label in ["0.00-0.20", "0.20-0.40", "0.40-0.60", "0.60-0.80", "0.80-1.00", "N/A"]:
-            trips = buckets.get(label)
-            if not trips:
-                continue
+        for label in sorted(buckets, key=lambda b: (b == "N/A", b)):
+            trips = buckets[label]
             wins = sum(1 for t in trips if t["pnl"] > 0)
             summary.append({
                 "label": label,

@@ -15,18 +15,17 @@ def test_loss_making_company_is_penalised_even_without_pe(snapshot):
     assert losing < unknown
 
 
-def test_loss_making_company_gets_high_conviction_sell(snapshot):
+def test_loss_making_company_sell_is_confirmed_by_fundamentals(snapshot):
     outcome = compute_score(snapshot(pe=None, pb=0.5, eps=-11.0, bullish=False))
     assert outcome["recommendation"] == "VENTE"
-    assert outcome["confidence"] >= 0.9
-    assert any("Vente de conviction" in reason for reason in outcome["reasons"])
+    assert any("confirment la vente" in reason for reason in outcome["reasons"])
 
 
 def test_high_price_to_book_is_not_toxic(snapshot):
     # Profil type luxe : P/B élevé mais bénéficiaire -> pas de vente "de conviction" (S2)
     outcome = compute_score(snapshot(pe=18.0, pb=2.9, dy=1.5, eps=13.0, bullish=False))
     assert outcome["recommendation"] == "VENTE"
-    assert not any("Vente de conviction" in reason for reason in outcome["reasons"])
+    assert not any("confirment la vente" in reason for reason in outcome["reasons"])
 
 
 def test_pe_contributes_once_per_bracket(snapshot):

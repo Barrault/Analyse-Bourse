@@ -495,3 +495,39 @@ de la branche `fix/audit-corrections`.
   (0,7 à 1,3) ne le justifient pas, et ce serait une optimisation sur l'échantillon.
 - **Conséquences** : le score technique va désormais de −6,5 à +6,5. Les seuils (achat 4,
   vente −2) sont conservés : un ACHAT exige des tendances long et moyen terme haussières.
+
+---
+
+## DEC-20 — Confiance = probabilité calibrée de battre le CAC 40
+
+- **Contexte** : la confiance était la distance du score au seuil, mise à l'échelle
+  (DEC-07), puis modifiée par des plafonds fondamentaux arbitraires (0,40, 0,90, 0,35,
+  0,30). Aucune de ces valeurs n'avait été mesurée. Résultat : une confiance de 0,82 ne
+  prédisait rien (étude du 2026-09-29).
+- **Décision** :
+  - **Confiance = probabilité historique que la recommandation soit dans le bon sens** :
+    `p` = part des titres ayant battu l'ETF CAC 40 à 3 mois dans la même tranche de score
+    technique, sur l'apprentissage. Confiance = `p` pour un ACHAT ou un NEUTRE, `1 − p`
+    pour une VENTE. La table (`scoring.confidence_calibration`) est produite par
+    `python src/calibrate.py calibrate`, en 5 tranches de score (quantiles), lissée par
+    **régression isotone** : un score plus haut n'a jamais une probabilité plus basse,
+    ce qui évite d'interpréter le bruit d'échantillonnage.
+  - Seul le **score technique** est calibré : il n'existe pas de fondamentaux historiques
+    pour mesurer l'effet des autres. Les fondamentaux continuent de déplacer le score
+    total, donc la recommandation, mais plus la confiance.
+  - Les plafonds fondamentaux sont supprimés. Leurs messages (pertes, Value Support, Panic
+    Sell, profil spéculatif) restent affichés comme **alertes**, sans effet chiffré.
+  - Chaque analyse affiche la probabilité et la moyenne de référence, par exemple :
+    « 49 % des titres à ce niveau de score ont battu le CAC 40 à 3 mois (moyenne : 47 %) ».
+  - Backtest : achats triés par probabilité puis par score technique (la table est par
+    tranches, donc les ex-aequo sont nombreux) ; tableau PnL par valeur de probabilité.
+- **Résultat du calibrage** : la probabilité va de **43,7 % à 49,3 %**, pour une moyenne de
+  47,0 %. La moyenne est sous 50 % car l'indice est tiré par quelques fortes hausses : le
+  titre médian fait moins bien que lui. L'avantage du score est **réel mais modeste**, et
+  la confiance le dit désormais, au lieu d'afficher 82 %.
+- **Écarté** :
+  - Une régression logistique sur le score : même idée, mais elle impose une forme en S que
+    rien ne justifie. Les tranches plus la régression isotone ne supposent rien.
+  - Calibrer la probabilité de **rendement positif** : elle mesurerait surtout la hausse
+    générale du marché, pas la qualité du choix d'un titre. Or c'est le choix des titres
+    qui compte quand le capital est entièrement investi.

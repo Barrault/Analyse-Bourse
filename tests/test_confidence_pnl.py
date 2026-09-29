@@ -63,8 +63,8 @@ def test_confidence_pnl_summary_groups_trades_by_buy_confidence():
 
     summary = backtester.get_confidence_pnl_summary()
 
-    high_bucket = next(item for item in summary if item["label"] == "0.80-1.00")
-    low_bucket = next(item for item in summary if item["label"] == "0.00-0.20")
+    high_bucket = next(item for item in summary if item["label"] == "0.900")
+    low_bucket = next(item for item in summary if item["label"] == "0.100")
 
     assert high_bucket["trades"] == 1
     assert high_bucket["wins"] == 1
