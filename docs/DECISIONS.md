@@ -104,3 +104,41 @@ de la branche `fix/audit-corrections`.
   - Imports inutilisés retirés. `sys.stdout.reconfigure(encoding='utf-8')` remplace le
     ré-enveloppement `io.TextIOWrapper`. C'est l'API prévue pour cela depuis Python 3.7 :
     elle garde le même objet stream et n'en crée pas un second sur le même buffer.
+
+---
+
+## DEC-06 — Scoring fondamental (S1, S2, S3, S6, C2)
+
+- **Contexte** :
+  - S1 : yfinance ne publie jamais de PE négatif (`trailingPE=None` en cas de perte) ni de
+    rendement nul (`None` pour un non-payeur). Les branches « PE négatif » et « aucun
+    dividende » étaient donc du code mort, et **une société en perte n'avait aucune
+    pénalité**. Vérifié sur UBI, ATOS et STMPA le 2026-09-29.
+  - S2 : P/B > 2,5 déclenchait le drapeau « toxique », qui force la confiance de vente à 0,90.
+  - S3 : le PE était noté 3 fois (tranches, terme continu `pe_scale`, bonus ROE) et le P/B
+    3 fois. Le poids réel des fondamentaux ne correspondait plus à celui lu dans le YAML.
+  - C2 : 15 seuils codés en dur ; S6 : `tech_score` et `fund_score` calculés sans être utilisés.
+- **Décision** :
+  - Perte détectée par `trailingEps < 0` (nouveau champ récupéré) : pénalité
+    `pe.negative = -2.0`, alignée sur `pe.high`, et drapeau toxique. Une entreprise en
+    perte ne doit pas être mieux notée qu'une entreprise rentable mais chère.
+  - Non-payeur détecté par `trailingAnnualDividendRate == 0` → `dy = 0`. Un `None`
+    persistant reste « inconnu » et n'est pas pénalisé.
+  - **Toxique = pertes uniquement.** Un P/B élevé reste une pénalité de score
+    (`pb.high`) et un drapeau « faible », mais pas « toxique » : il est structurel pour
+    les modèles à actifs légers (luxe, logiciel), où les fonds propres comptables
+    sous-estiment la valeur.
+  - **Une contribution par métrique.** Les tranches sont conservées ; le terme continu
+    et le bonus ROE autonome sont supprimés. Le ROE implicite ne sert plus qu'à qualifier
+    le P/B, ce qui était déjà son rôle dans les tranches.
+  - Tous les seuils passent dans `scoring.fundamentals.limits`. Les clés mortes
+    `value_confirmation` et `dividend.medium_yield` sont remplacées par la clé existante
+    `cheap_with_growth` et par une tranche neutre documentée.
+- **Écarté** : garder le terme continu et supprimer les tranches. Le terme continu est un
+  bonus borné à 0 : il ne pénalise jamais un PE élevé et ne permet pas l'interaction avec
+  la tendance (PE raisonnable *et* tendance haussière). Les tranches sont aussi celles
+  qu'expliquent les motifs affichés à l'utilisateur.
+- **Conséquences** : l'amplitude du score fondamental baisse d'environ 3 points pour les
+  valeurs décotées. Le seuil d'achat (4) n'a pas été recalibré : cela relève d'une
+  campagne de calibrage sur un backtest désormais honnête (DEC-09), pas d'un correctif.
+  Chaque nouveau comportement a un test qui échoue sur l'ancien code.

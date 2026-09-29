@@ -235,123 +235,93 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
         score += weights['volatility']['high_volatility']
         reasons.append("* Volatilité élevée : Le prix peut beaucoup bouger, prudence.")
 
-    tech_score = score
-
     # ----------------------- Fundamentals ----------------------- #
+    # Chaque métrique (PE, P/B, dividende) contribue UNE seule fois au score ;
+    # le ROE implicite ne sert qu'à qualifier le P/B (cf. DEC-06).
+    fw = weights['fundamentals']
+    lim = fw['limits']
     pe = s.fundamentals.get("trailingPE")
     pb = s.fundamentals.get("priceToBook")
     dy = s.fundamentals.get("dividendYield")
+    eps = s.fundamentals.get("trailingEps")
 
     weak_fundamentals = False
     toxic_fundamentals = False
 
-    roe = None
-    if pe is not None and pb is not None and pe > 0:
-        roe = 1 / pe * pb * 100
+    # yfinance ne publie pas de PE négatif (trailingPE = None) : une perte se lit sur le BPA.
+    loss_making = (eps is not None and eps < 0) or (pe is not None and pe < 0)
 
-    # --- PE analysis ---
-    if pe is not None:
-        if pe < 0:
-            toxic_fundamentals = True
-            reasons.append(f"-- PE négatif (PE={pe:.1f}) : L'entreprise essuie des pertes nettes. Profil fondamental très dégradé.")
-        elif 0 <= pe < 8:
-            score += weights['fundamentals']['pe']['very_low']
-            reasons.append(f"- PE très bas (PE={pe:.1f}) : Le PE montre combien vous payez pour chaque euro de profit annuel. Un PE très bas (< 8) peut signifier une opportunité ou un piège.")
-        elif 8 <= pe <= 14:
+    # ROE implicite = (P/B) / (P/E) = Bénéfice / Fonds propres
+    roe = pb / pe * 100 if (pe is not None and pe > 0 and pb is not None) else None
+
+    # --- PE ---
+    if loss_making:
+        score += fw['pe']['negative']
+        toxic_fundamentals = True
+        reasons.append("-- Entreprise en perte (BPA négatif) : aucun bénéfice ne soutient le cours. Profil fondamental très dégradé.")
+    elif pe is not None:
+        if pe < lim['pe_very_low']:
+            score += fw['pe']['very_low']
+            reasons.append(f"- PE très bas (PE={pe:.1f}) : Le PE montre combien vous payez pour chaque euro de profit annuel. Un PE très bas (< {lim['pe_very_low']}) peut signifier une opportunité ou un piège.")
+        elif pe <= lim['pe_low_max']:
             if s.close > s.sma200 and s.macd > 0:
-                score += weights['fundamentals']['pe']['low']
-                reasons.append(f"+ PE raisonnable (PE={pe:.1f}, c'est-à-dire {pe:.1f}€ dépensé par euro de profit) : Entre 8 et 14, c'est un bon rapport qualité/prix, surtout avec une tendance haussière.")
+                score += fw['pe']['low']
+                reasons.append(f"+ PE raisonnable (PE={pe:.1f}, c'est-à-dire {pe:.1f}€ dépensé par euro de profit) : Entre {lim['pe_very_low']} et {lim['pe_low_max']}, c'est un bon rapport qualité/prix, surtout avec une tendance haussière.")
             else:
-                score += weights['fundamentals']['pe']['low_weak']
+                score += fw['pe']['low_weak']
                 reasons.append(f"- PE correct (PE={pe:.1f}) mais la dynamique est faible - pas assez de raisons d'acheter.")
-        elif 14 < pe <= 22:
-            score += weights['fundamentals']['pe']['moderate']
-            reasons.append(f"- PE déjà exigeant (PE={pe:.1f}) : Entre 14 et 22, vous payez davantage par euro de profit, sans forte croissance visible.")
+        elif pe <= lim['pe_moderate_max']:
+            score += fw['pe']['moderate']
+            reasons.append(f"- PE déjà exigeant (PE={pe:.1f}) : Entre {lim['pe_low_max']} et {lim['pe_moderate_max']}, vous payez davantage par euro de profit, sans forte croissance visible.")
             weak_fundamentals = True
-        elif pe > 22:
-            score += weights['fundamentals']['pe']['high']
-            reasons.append(f"-- PE élevé (PE={pe:.1f}) : Au-dessus de 22, c'est cher. Le prix devrait augmenter vite pour justifier cette valorisation.")
-            weak_fundamentals = True
-
-    # --- Continuous value scoring ---
-    fund_weights = weights['fundamentals']
-    pe_scale = config.get('scoring.fundamentals.pe_scale', 25.0)
-    pb_scale = config.get('scoring.fundamentals.pb_scale', 3.0)
-    roe_threshold = config.get('scoring.fundamentals.roe_threshold', 10.0)
-    pe_cont_weight = fund_weights.get('pe_continuous_weight', 1.4)
-    pb_cont_weight = fund_weights.get('pb_continuous_weight', 1.4)
-    roe_weight = fund_weights.get('roe_weight', 0.6)
-    value_conf_weight = fund_weights.get('value_confirmation', 1.5)
-
-    if pe is not None and pe > 0:
-        pe_score = max(0.0, 1.0 - (pe / pe_scale))
-        score += pe_cont_weight * pe_score
-        if pe_score > 0.6:
-            reasons.append(f"+ Valorisation PE favorable (PE={pe:.1f}) : le titre est relativement peu cher au regard de ses profits.")
-        elif pe_score < 0.3:
-            reasons.append(f"- Valorisation PE chère (PE={pe:.1f}) : le titre est relativement cher au regard de ses profits.")
-
-    if pb is not None:
-        pb_score = max(0.0, 1.0 - (pb / pb_scale))
-        score += pb_cont_weight * pb_score
-        if pb_score > 0.6:
-            reasons.append(f"+ Valorisation P/B favorable (P/B={pb:.1f}) : le titre est peu cher par rapport à ses actifs.")
-        elif pb_score < 0.3:
-            reasons.append(f"- Valorisation P/B chère (P/B={pb:.1f}) : le titre est cher par rapport à ses actifs.")
-
-    if roe is not None:
-        if roe >= 12:
-            score += roe_weight
-            reasons.append(f"+ ROE implicite solide (ROE≈{roe:.1f}%) : la société transforme bien ses fonds propres en profit.")
-        elif roe >= roe_threshold:
-            score += roe_weight * 0.5
         else:
-            score -= roe_weight * 0.5
+            score += fw['pe']['high']
+            reasons.append(f"-- PE élevé (PE={pe:.1f}) : Au-dessus de {lim['pe_moderate_max']}, c'est cher. Le prix devrait augmenter vite pour justifier cette valorisation.")
+            weak_fundamentals = True
 
-    # --- Price to Book analysis ---
+    # --- Price to Book (qualifié par le ROE implicite) ---
     if pb is not None:
-        if pb < 1:
-            if roe is not None and roe > 10:
-                score += weights['fundamentals']['pb']['very_low_good_roe']
-                reasons.append(f"+ P/B sous-évalué (P/B={pb:.1f}) avec bon ROE (ROE≈{roe:.1f}%) : Un P/B < 1 signifie vous l'achetez moins cher que sa valeur en actifs.")
+        if pb < lim['pb_low']:
+            if roe is not None and roe > lim['roe_min']:
+                score += fw['pb']['very_low_good_roe']
+                reasons.append(f"+ P/B sous-évalué (P/B={pb:.1f}) avec bon ROE (ROE≈{roe:.1f}%) : Un P/B < {lim['pb_low']} signifie vous l'achetez moins cher que sa valeur en actifs.")
             else:
-                score += weights['fundamentals']['pb']['very_low_bad_roe']
+                score += fw['pb']['very_low_bad_roe']
                 reasons.append(f"- P/B bas (P/B={pb:.1f}) mais rentabilité faible : Peut-être bon marché pour une raison (mauvaise gestion).")
                 weak_fundamentals = True
-        elif 1 <= pb <= 2.5:
-            if roe is not None and roe >= 12:
-                score += weights['fundamentals']['pb']['moderate_good_roe']
-                reasons.append(f"+ P/B normal (P/B={pb:.1f}, prix comparé à la valeur de l'entreprise) et bonne rentabilité (ROE≥12%, c'est-à-dire ≥12% de profit sur les fonds propres) : Prix et valeur en actifs sont équilibrés, l'entreprise génère de bons profits.")
+        elif pb <= lim['pb_moderate_max']:
+            if roe is not None and roe >= lim['roe_good']:
+                score += fw['pb']['moderate_good_roe']
+                reasons.append(f"+ P/B normal (P/B={pb:.1f}, prix comparé à la valeur de l'entreprise) et bonne rentabilité (ROE≈{roe:.1f}% ≥ {lim['roe_good']}%) : Prix et valeur en actifs sont équilibrés, l'entreprise génère de bons profits.")
             else:
-                score += weights['fundamentals']['pb']['moderate_bad_roe']
+                score += fw['pb']['moderate_bad_roe']
                 reasons.append(f"- P/B correct (P/B={pb:.1f}) mais rentabilité insuffisante (ROE faible).")
                 weak_fundamentals = True
-        elif pb > 2.5:
-            score += weights['fundamentals']['pb']['high']
+        else:
+            # Un P/B élevé est structurel pour les sociétés à actifs légers (luxe, logiciel) :
+            # signal de cherté, pas de toxicité (cf. DEC-06).
+            score += fw['pb']['high']
             reasons.append(f"- P/B élevé (P/B={pb:.1f}) : Risqué sauf si forte croissance attendue.")
             weak_fundamentals = True
-            toxic_fundamentals = True
 
-    # --- Cross PE & PB (sanity check) ---
-    if pe is not None and pb is not None:
-        if pe > 20 and pb > 3:
-            score += weights['fundamentals']['expensive_both']
+    # --- Croisement PE & P/B ---
+    if pe is not None and pb is not None and not loss_making:
+        if pe > lim['expensive_pe'] and pb > lim['expensive_pb']:
+            score += fw['expensive_both']
             reasons.append(f"-- Double surévaluation : PE élevé (PE={pe:.1f}, cher par euro de profit) + P/B élevé (P/B={pb:.1f}, cher par rapport aux actifs). Risque très élevé.")
-        if pe < 12 and pb < 1.2 and s.close > s.sma200:
-            score += value_conf_weight
+        if pe < lim['cheap_pe'] and pb < lim['cheap_pb'] and s.close > s.sma200:
+            score += fw['cheap_with_growth']
             reasons.append(f"+ Décote cohérente confirmée : PE bas (PE={pe:.1f}) + P/B bas (P/B={pb:.1f}) + prix en hausse.")
-
-    fund_score = score - tech_score
 
     # --- Dividend ---
     if dy is not None:
-        if dy >= 5:
-            score += weights['fundamentals']['dividend']['high_yield']
+        if dy >= lim['high_yield_pct']:
+            score += fw['dividend']['high_yield']
             reasons.append(f"+ Dividende élevé et défensif ({dy:.1f}%).")
-        elif 2 <= dy < 5:
+        elif dy >= lim['medium_yield_pct']:
             reasons.append(f"* Dividende correct mais non protecteur ({dy:.1f}%).")
         elif dy == 0:
-            score += weights['fundamentals']['dividend']['no_dividend']
+            score += fw['dividend']['no_dividend']
             reasons.append("- Aucun dividende : Aucune protection en cas de baisse.")
 
     thresholds = config.get('scoring.thresholds')
@@ -380,7 +350,7 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
             reasons.append("+ Vente de conviction : La chute technique est confirmée par des fondamentaux toxiques ou une surévaluation critique.")
 
         # 2. CAS VALUE SUPPORT : Le titre baisse mais il est déjà tellement donné qu'on ne shorte pas à 100%
-        elif pe is not None and 0 < pe < 11 and pb is not None and pb < 1.1:
+        elif pe is not None and 0 < pe < lim['value_support_pe'] and pb is not None and pb < lim['value_support_pb']:
             confidence = min(confidence, 0.35)
             reasons.append("- Alerte Value Support : Les indicateurs techniques sont baissiers, mais l'action est fondamentalement très bon marché (PE et P/B bas). Confiance bridée pour éviter de vendre au plus bas.")
 
@@ -406,6 +376,8 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
 
 # ----------------------- Fundamentals & Snapshot ----------------------- #
 
+FUNDAMENTAL_KEYS = ("trailingPE", "priceToBook", "dividendYield", "trailingEps")
+
 def fetch_fundamentals_safe(ticker: str) -> Dict[str, Optional[float]]:
     """Récupère les fondamentaux d’un ticker Yahoo Finance, avec conversion sécurisée."""
     def to_float(x):
@@ -416,13 +388,20 @@ def fetch_fundamentals_safe(ticker: str) -> Dict[str, Optional[float]]:
 
     try:
         info = yf.Ticker(ticker).info
-        pe = to_float(info.get("trailingPE"))
-        pb = to_float(info.get("priceToBook"))
-        # Déjà exprimé en pourcentage depuis yfinance 0.2.54 (4.5 = 4,5 %)
-        dy = to_float(info.get("dividendYield"))
-        return {"trailingPE": pe, "priceToBook": pb, "dividendYield": dy}
     except Exception:
-        return {"trailingPE": None, "priceToBook": None, "dividendYield": None}
+        return dict.fromkeys(FUNDAMENTAL_KEYS)
+
+    # Déjà exprimé en pourcentage depuis yfinance 0.2.54 (4.5 = 4,5 %)
+    dy = to_float(info.get("dividendYield"))
+    # yfinance renvoie None (et non 0) pour un non-payeur : le dividende annuel versé tranche.
+    if dy is None and to_float(info.get("trailingAnnualDividendRate")) == 0:
+        dy = 0.0
+    return {
+        "trailingPE": to_float(info.get("trailingPE")),
+        "priceToBook": to_float(info.get("priceToBook")),
+        "dividendYield": dy,
+        "trailingEps": to_float(info.get("trailingEps")),
+    }
 
 def build_snapshot(df: pd.DataFrame, fundamentals: Dict[str, Optional[float]]) -> IndicatorSnapshot:
     """Construit un `IndicatorSnapshot` à partir des derniers indicateurs calculés."""

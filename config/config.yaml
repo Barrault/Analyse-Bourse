@@ -73,40 +73,49 @@ scoring:
 
   # Fundamental Analysis Weights
   fundamentals:
-    # PE Ratio Analysis
+    # PE Ratio Analysis (une seule contribution au score)
     pe:
-      very_low: -0.5      # PE < 8
-      low: 0.8            # 8 <= PE <= 14 (with bullish trend)
-      low_weak: -0.5      # 8 <= PE <= 14 (weak trend)
-      moderate: -0.5      # 14 < PE <= 22
-      high: -2.0          # PE > 22
+      negative: -2.0      # Entreprise en perte (BPA < 0) - aussi marquée "toxique"
+      very_low: -0.5      # PE < pe_very_low (piège de valeur possible)
+      low: 0.8            # PE <= pe_low_max, avec tendance haussière
+      low_weak: -0.5      # PE <= pe_low_max, tendance faible
+      moderate: -0.5      # PE <= pe_moderate_max
+      high: -2.0          # PE > pe_moderate_max
 
-    # Price-to-Book Analysis
+    # Price-to-Book Analysis (qualifié par le ROE implicite = P/B / PE)
     pb:
-      very_low_good_roe: 0.5    # P/B < 1 with ROE > 10%
-      very_low_bad_roe: -1.0    # P/B < 1 with low ROE
-      moderate_good_roe: 0.5    # 1 <= P/B <= 2.5 with ROE >= 12%
-      moderate_bad_roe: -0.5    # 1 <= P/B <= 2.5 with low ROE
-      high: -1.5                # P/B > 2.5
+      very_low_good_roe: 0.5    # P/B < pb_low avec ROE > roe_min
+      very_low_bad_roe: -1.0    # P/B < pb_low avec ROE faible
+      moderate_good_roe: 0.5    # P/B <= pb_moderate_max avec ROE >= roe_good
+      moderate_bad_roe: -0.5    # P/B <= pb_moderate_max avec ROE faible
+      high: -1.5                # P/B > pb_moderate_max (cher, mais pas "toxique")
 
     # Cross PE/PB Sanity Checks
-    expensive_both: -2.0   # PE > 20 AND P/B > 3
-    cheap_with_growth: 1.5 # PE < 12 AND P/B < 1.2 (with bullish trend)
+    expensive_both: -2.0   # PE > expensive_pe ET P/B > expensive_pb
+    cheap_with_growth: 1.5 # PE < cheap_pe ET P/B < cheap_pb ET cours > SMA200
 
-    # Continuous value scoring (helps separate same-technical stocks)
-    pe_continuous_weight: 1.4   # Stronger bonus for low PE
-    pb_continuous_weight: 1.4   # Stronger bonus for low P/B
-    roe_weight: 0.6             # Bonus for good implied ROE
-    value_confirmation: 1.5    # Extra bonus when cheapness is confirmed by trend
-    pe_scale: 25.0              # Higher PE lowers the bonus more gradually
-    pb_scale: 3.0               # Lower P/B improves the score more gradually
-    roe_threshold: 10.0         # Minimum implied ROE to get a positive quality bump
-
-    # Dividend Yield
+    # Dividend Yield (entre medium et high : neutre, pas de points)
     dividend:
-      high_yield: 1.0      # Dividend Yield >= 5%
-      medium_yield: 0.5    # 2% <= DY < 5%
-      no_dividend: -0.5    # DY == 0
+      high_yield: 1.0      # DY >= high_yield_pct
+      no_dividend: -0.5    # Aucun dividende versé sur 12 mois
+
+    # Seuils des tranches ci-dessus
+    limits:
+      pe_very_low: 8
+      pe_low_max: 14
+      pe_moderate_max: 22
+      pb_low: 1.0
+      pb_moderate_max: 2.5
+      roe_min: 10          # % - ROE implicite minimal pour un P/B < pb_low
+      roe_good: 12         # % - ROE implicite pour un P/B normal
+      expensive_pe: 20
+      expensive_pb: 3
+      cheap_pe: 12
+      cheap_pb: 1.2
+      high_yield_pct: 5
+      medium_yield_pct: 2
+      value_support_pe: 11   # VENTE bridée si PE < ... et P/B < ... (titre déjà bradé)
+      value_support_pb: 1.1
 
   # Thresholds for Recommendations
   thresholds:
