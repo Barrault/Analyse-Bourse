@@ -319,3 +319,26 @@ de la branche `fix/audit-corrections`.
 - **Conséquences** : avec 20 000 € de capital et des ordres de 1 000 € maximum, une large
   part du portefeuille reste en cash. Le benchmark rend ce frein visible : c'est un
   paramètre de dimensionnement à revoir, pas un bug.
+
+---
+
+## DEC-14 — Fin du nettoyage de la config et univers d'actions (C1, C6, B1)
+
+- **C1** : un script compare chaque clé du YAML au code. Restaient inertes :
+  `indicators.macd.*` (le MACD utilisait 12/26/9 en dur), désormais câblés, et
+  `output.verbose/debug_tickers/save_results`, supprimés : aucun comportement ne les
+  justifie. Toutes les clés restantes sont lues, et leur absence lève une erreur (DEC-03).
+- **C6** : commentaires corrigés (« Raised from 100 » alors que la valeur valait 100,
+  conseils de calibrage parlant de pourcentages d'ordre inexistants, RSI « 50-70 » écrit
+  en dur alors que les bornes sont configurables).
+- **B1, univers** :
+  - Doublon `ELIS.PA` supprimé. Il était sans effet (clé de dict), mais trompeur.
+  - `ARRJ.F` (Francfort) remplacé par `MT.AS` (Euronext Amsterdam, cotation principale
+    d'ArcelorMittal, en EUR, avec des horaires alignés sur Paris). `MT.PA` n'existe pas
+    sur Yahoo (vérifié).
+  - **Biais du survivant non corrigé, mais documenté** : la liste est la composition
+    actuelle. Les sociétés sorties de la cote ou rétrogradées depuis 2024 manquent, ce qui
+    flatte le backtest. Le corriger exige des compositions historiques d'indice (données
+    payantes Euronext). Le commentaire en tête de liste et le README le signalent. Le nom
+    `NOMS_ENTREPRISES` est conservé pour ne pas multiplier les changements ; le
+    commentaire précise qu'il s'agit d'un univers de type SBF 120 et non du CAC 40.

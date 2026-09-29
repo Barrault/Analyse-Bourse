@@ -1,5 +1,6 @@
 # Configuration complète du CAC40 Analyzer
-# Modifiez ces paramètres pour calibrer le système sans toucher au code
+# Modifiez ces paramètres pour calibrer le système sans toucher au code.
+# Toutes les clés sont obligatoires : une clé manquante ou mal orthographiée lève une erreur.
 
 # ============================== INDICATOR PARAMETERS ==============================
 indicators:
@@ -51,9 +52,9 @@ scoring:
 
   # RSI Weights
   rsi:
-    neutral_zone: 0.5     # RSI between 50-70
-    oversold: 1.0         # RSI < 30
-    overbought: -1.5      # RSI > 70
+    neutral_zone: 0.5     # neutral_lower <= RSI <= neutral_upper (30-50 : 0 point)
+    oversold: 1.0         # RSI < oversold_threshold
+    overbought: -1.5      # RSI > overbought_threshold
 
   # Bollinger Bands Weights
   bollinger:
@@ -181,30 +182,18 @@ backtest:
   data:
     period: "5y"           # Historique téléchargé (>= 200 séances avant start_date pour la SMA200)
 
-# ============================== OUTPUT & LOGGING ==============================
+# ============================== OUTPUT ==============================
 output:
-  verbose: true
-  debug_tickers: ["AC.PA"]  # Print debug info for these tickers
-  save_results: true
-  results_dir: "results"
+  results_dir: "results"                    # Relatif à la racine du projet
   results_filename: "backtest_results.json"
 
 # ============================== CALIBRATION HINTS ==============================
-# Use these notes when tweaking parameters:
-#
-# 1. SCORING: Increase weights if you want more aggressive signals
-#    - Decrease 'buy' threshold (e.g., 3 instead of 5) for more BUY signals
-#    - Increase 'sell' threshold (e.g., -5) for fewer SELL signals
-#
-# 2. FUNDAMENTALS: PE and P/B heavily influence quality
-#    - Higher PE penalties = fewer overvalued stocks
-#    - Higher P/B penalties = prefer asset-light businesses
-#
-# 3. TRENDS vs MOMENTUM: Balance trend-following vs mean-reversion
-#    - Increase trend weights for systematic buying on strength
-#    - Increase RSI/overbought penalties for contrarian signals
-#
-# 4. ORDER SIZING: Larger orders pay lower fees but higher risk
-#    - Typical: 0.25 = 25% per order, allows ~4 concurrent positions
-#    - Conservative: 0.15 = 15%, allows ~6 positions
-#    - Aggressive: 0.50 = 50%, allows ~2 positions max
+# 1. SEUILS : baisser scoring.thresholds.buy (ex: 3) donne plus de signaux ACHAT ;
+#    baisser scoring.thresholds.sell (ex: -4) donne moins de signaux VENTE.
+# 2. FONDAMENTAUX : pénalités PE/P/B plus fortes = moins de valeurs chères.
+#    Sans effet en backtest tant que backtest.use_fundamentals = false.
+# 3. TENDANCE vs MOMENTUM : poids de tendance élevés = suivi de tendance ;
+#    pénalités RSI/Bollinger élevées = approche contrariante.
+# 4. TAILLE DES ORDRES : min/max_order_amount bornent chaque achat ; avec un capital de
+#    20 000 € et 1 000 € max par ordre, il faut ~20 positions pour être investi.
+# 5. Toujours comparer au benchmark (backtest.benchmark) avant de conclure.

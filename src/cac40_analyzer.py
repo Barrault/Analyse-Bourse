@@ -106,7 +106,10 @@ def prepare_indicators(df: pd.DataFrame) -> Optional[pd.DataFrame]:
     df['SMA200'] = sma(df['Close'], sma_params['long_window'])
     df['RSI14'] = rsi(df['Close'], rsi_params['window'])
 
-    macd_line, signal_line, hist = macd(df['Close'])
+    macd_params = config.get_section('indicators')['macd']
+    macd_line, signal_line, hist = macd(
+        df['Close'], macd_params['fast_window'], macd_params['slow_window'], macd_params['signal_window']
+    )
     df['MACD'] = macd_line
     df['MACD_signal'] = signal_line
     df['MACD_hist'] = hist
@@ -478,7 +481,9 @@ def build_snapshot(df: pd.DataFrame, fundamentals: Dict[str, Optional[float]]) -
         fundamentals=fundamentals
     )
 
-# ----------------------- Tickers CAC40 et noms ----------------------- #
+# ----------------------- Univers d'actions et noms ----------------------- #
+# ~96 valeurs françaises (type SBF 120 : CAC 40 + mid caps), composition ACTUELLE.
+# Un backtest sur cette liste subit un biais du survivant (cf. DEC-14).
 
 NOMS_ENTREPRISES = {
         'AC.PA': 'Accor',
@@ -489,7 +494,7 @@ NOMS_ENTREPRISES = {
         'ALO.PA': 'Alstom',
         'AMUN.PA': 'Amundi',
         'ARAMI.PA': 'Aramis Group',
-        'ARRJ.F': 'ArcelorMittal',
+        'MT.AS': 'ArcelorMittal',
         'AKE.PA': 'Arkema',
         'ASY.PA': 'Assystem',
         'ATO.PA': 'Atos',
@@ -517,7 +522,6 @@ NOMS_ENTREPRISES = {
         'EL.PA': 'EssilorLuxottica',
         'NAE.PA': 'North Atlantic Energies (Ancien ESSO)',
         'FGR.PA': 'Eiffage',
-        'ELIS.PA': 'Elis',
         'ERF.PA': 'Eurofins Scientific',
         'ENX.PA': 'Euronext',
         'ETL.PA': 'Eutelsat',
