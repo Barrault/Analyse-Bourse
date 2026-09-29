@@ -228,7 +228,7 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
             reasons.append("* Volume faible : Peu d'investisseurs bougent, le prix stagne.")
 
     # Volatility (ATR-based)
-    volatility_threshold = config.get('indicators.volatility.threshold', 0.04)
+    volatility_threshold = config.get('scoring.volatility.threshold')
     if s.atr14 / s.close < volatility_threshold:
         score += weights['volatility']['low_volatility']
         reasons.append("+ Volatilité faible : Le prix varie peu, risque limité.")

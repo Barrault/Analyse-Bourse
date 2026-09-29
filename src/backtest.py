@@ -29,15 +29,14 @@ def calculate_fees(amount: float) -> float:
 
         # Dernier tier avec max_amount = None
         if max_amount is None:
-            percentage_fee = fee_tier.get('percentage_fee', 0.0009)
+            percentage_fee = fee_tier['percentage_fee']
             return amount * percentage_fee
 
         # Tier avec montant maximum
         if amount <= max_amount:
-            return fee_tier.get('fixed_fee', 0.99)
+            return fee_tier['fixed_fee']
 
-    # Fallback: utiliser le dernier tier
-    return fee_structure[-1].get('fixed_fee', 0.99)
+    raise ValueError("fees.structure doit se terminer par un palier 'max_amount: null'")
 
 # ----------------------- Portfolio & Trade Tracking ----------------------- #
 
@@ -314,8 +313,8 @@ class Backtester:
         if max_order < min_order:
             max_order = min_order
 
-        min_confidence = float(order_sizing.get('min_confidence_for_min_spend', 0.2))
-        max_confidence = float(order_sizing.get('max_confidence_for_max_spend', 1.0))
+        min_confidence = float(order_sizing['min_confidence_for_min_spend'])
+        max_confidence = float(order_sizing['max_confidence_for_max_spend'])
 
         if confidence <= min_confidence:
             desired_amount = min_order

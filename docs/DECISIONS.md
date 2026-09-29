@@ -54,3 +54,23 @@ de la branche `fix/audit-corrections`.
   Fixer la version de la dépendance lève l'ambiguïté à la source.
 - **Conséquences** : les valeurs à rendement < 1 % (STMicro, Dassault Systèmes…) ne
   touchent plus le bonus « dividende élevé ». Test : `tests/test_fundamentals.py`.
+
+---
+
+## DEC-03 — Configuration stricte (C3)
+
+- **Contexte** : `config.get()` renvoyait `None` pour une clé absente. Une faute de frappe
+  dans le YAML ne se voyait qu'au plantage d'une comparaison `None > float`, ou pire,
+  était masquée par une valeur par défaut codée en dur. Cas réel trouvé :
+  `compute_score` lisait `indicators.volatility.threshold` alors que la clé est
+  `scoring.volatility.threshold`. La valeur du YAML n'a donc **jamais** été utilisée
+  (le défaut 0.04 coïncidait par hasard).
+- **Décision** : `get(path)` lève `KeyError` avec le chemin fautif si la clé manque. Un
+  défaut n'est possible que s'il est passé **explicitement**. Suppression des défauts codés
+  en dur (frais, sizing) : le YAML est l'unique source de vérité. Le singleton `__new__`
+  et les fonctions de commodité inutilisées sont retirés : une instance au niveau du
+  module est déjà un singleton en Python.
+- **Écarté** : une validation par schéma (pydantic, jsonschema). C'est plus complet, mais
+  cela ajoute une dépendance et un schéma à maintenir en double du YAML. L'échec au premier
+  accès couvre le besoin réel, à savoir détecter une clé mal orthographiée.
+- **Conséquences** : une config incomplète échoue tôt, avec un message qui nomme la clé.
