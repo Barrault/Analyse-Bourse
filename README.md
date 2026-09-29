@@ -41,20 +41,24 @@ de la stratégie et du benchmark, PnL par tranche de confiance) dans
 
 ### Score
 
-| Famille | Signaux (poids dans `scoring.*`) |
-|---|---|
-| Tendance | Cours > SMA200, SMA50 > SMA200, SMA20 > SMA50 |
-| Momentum | MACD > 0, histogramme MACD > 0 |
-| Oscillateurs | RSI (zone neutre, survente, surachat), bandes de Bollinger |
-| Volume / volatilité | Volume > moyenne 20 j, ATR / cours sous un seuil |
-| Fondamentaux | PE par tranches, P/B qualifié par le ROE implicite, croisement PE × P/B, dividende, pertes (BPA < 0) |
+| Famille | Signaux | Poids |
+|---|---|---|
+| Tendance | Cours > SMA200, SMA50 > SMA200, SMA20 > SMA50 | ±2,0 / ±1,2 / ±1,0 |
+| Momentum | MACD > 0 | ±1,8 |
+| Volume | Volume > moyenne sur 20 jours | ±0,5 |
+| Fondamentaux | PE par tranches, P/B qualifié par le ROE implicite, croisement PE × P/B, dividende, pertes (BPA < 0) | voir `scoring.fundamentals` |
+
+Les autres règles techniques (histogramme MACD, RSI, Bollinger, volatilité) ont un
+poids nul : elles n'ont montré aucun effet mesurable sur 2017-2021 (DEC-19).
 
 - Recommandation : `score ≥ thresholds.buy` → ACHAT, `score ≤ thresholds.sell` → VENTE,
   sinon NEUTRE.
-- Confiance : 0,5 au seuil, puis 1,0 à `confidence_scale` points au-delà, avec des
-  plafonds métier (fondamentaux faibles, titre déjà bradé, etc.).
-- Montant suggéré (ACHAT seulement) : interpolation linéaire entre `min_order_amount` et
-  `max_order_amount` selon la confiance. C'est la même règle que dans le backtest.
+- **Confiance = probabilité historique de battre le CAC 40 à 3 mois** pour ce niveau de
+  score technique : p pour un ACHAT, 1 − p pour une VENTE. Elle est calibrée sur
+  2017-2021 et vérifiée sur 2022-2026. Elle va de 44 % à 49 %, pour une moyenne de 47 % :
+  l'avantage du score est réel mais modeste. Les fondamentaux n'y entrent pas, faute
+  d'historique ; ils produisent des alertes.
+- Montant suggéré (ACHAT seulement) : `trading.order_amount`, identique pour tous.
 
 ### Backtest
 
@@ -62,13 +66,33 @@ de la stratégie et du benchmark, PnL par tranche de confiance) dans
 - Signal calculé sur les séances **antérieures**, ordres exécutés au **cours d'ouverture**.
 - Ventes : signal VENTE ou **stop-loss** (clôture de la veille ≥ `stop_loss_pct` sous le
   prix d'achat).
-- Achats : **actions entières**, frais Bourse Direct par paliers (`fees.structure`),
-  réserve de trésorerie `margin_buffer`.
+- Achats : **actions entières**, montant identique, frais Bourse Direct par paliers
+  (`fees.structure`), réserve de trésorerie `margin_buffer`. Quand le cash manque, les
+  achats sont servis par probabilité, puis par score technique.
+- **Contrôle des données** : un cours multiplié ou divisé par 2 en une séance (opération
+  sur titre mal ajustée par Yahoo) découpe la série en segments, et une ligne détenue à ce
+  moment est soldée au dernier cours valide (DEC-17).
 - Valorisation à chaque clôture. Rendement, volatilité, Sharpe (taux sans risque nul) et
   drawdown maximal, comparés à l'ETF **Amundi CAC 40 (`CAC.PA`)**, dividendes inclus.
 - **Fondamentaux désactivés par défaut** (`backtest.use_fundamentals: false`) : Yahoo ne
-  fournit que les valeurs actuelles, et s'en servir pour noter 2024 serait un biais
+  fournit que les valeurs actuelles, et s'en servir pour noter le passé serait un biais
   d'anticipation.
+- Période par défaut : 2022 → aujourd'hui, c'est-à-dire la **période de test**, sur
+  laquelle aucun réglage n'a été choisi.
+
+### Calibrage
+
+Les réglages sont choisis sur la période d'**apprentissage** (`calibration.*`, 2017-2021)
+et vérifiés sur la période de **test** (2022 → aujourd'hui) :
+
+```bash
+python src/calibrate.py features    # effet de chaque composante (apprentissage)
+python src/calibrate.py calibrate   # table score -> probabilité à reporter dans la config
+python src/calibrate.py evaluate    # fiabilité de cette table sur la période de test
+```
+
+Ne jamais régler un paramètre en regardant la période de test : le résultat du backtest
+perdrait toute valeur.
 
 ### Limites connues
 
@@ -76,9 +100,11 @@ de la stratégie et du benchmark, PnL par tranche de confiance) dans
   sociétés disparues depuis 2024 manquent.
 - **Fondamentaux non historiques** : le backtest par défaut évalue donc la partie technique
   de la stratégie seulement.
+- **Un seul chemin historique** : l'avance sur l'ETF en test (+2,7 points par an) est
+  encourageante, mais reste compatible avec de la chance (DEC-22).
 - Stop-loss vérifié une fois par période, pas en continu.
-- Poids et seuils **non calibrés** : ce sont des choix d'expert, à ajuster en comparant
-  au benchmark.
+- Les **valeurs** des poids restent des choix d'expert. Seule leur sélection (poids
+  nul ou non) est mesurée.
 
 ## Configuration
 
@@ -102,6 +128,7 @@ src/cac40_analyzer.py     Indicateurs, scoring, analyse du jour
 src/backtest.py           Moteur de backtest, métriques, benchmark
 src/run_full_backtest.py  Lancement du backtest avec journal et export JSON
 src/config_loader.py      Lecture stricte de la configuration
+src/calibrate.py          Calibrage (apprentissage) et évaluation (test)
 tests/                    Suite pytest (données synthétiques, sans réseau)
 docs/AUDIT.md             Audit du 2026-09-29 (constats identifiés A1…D4)
 docs/DECISIONS.md         Journal des décisions : contexte, choix, alternatives

@@ -4,6 +4,37 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 identifiants (A1, S2…) renvoient à [docs/AUDIT.md](docs/AUDIT.md) et les choix sont
 justifiés dans [docs/DECISIONS.md](docs/DECISIONS.md).
 
+## [1.2.0] — 2026-09-29 — Confiance calibrée
+
+### Résultat hors échantillon (2022-01 → 2026-09, aucun réglage choisi sur cette période)
+
+|                     | 1.1.0   | **1.2.0** | ETF CAC 40 |
+|---------------------|--------:|----------:|-----------:|
+| Rendement annualisé |  3,7 %  |  **8,4 %** |      5,6 % |
+| Sharpe (rf = 0)     |   0,33  |   **0,57** |       0,41 |
+| Drawdown max        | −23,3 % |   −20,9 % |    −20,9 % |
+
+La version 1.1.0 faisait **moins bien** que l'ETF sur cette période plus longue. Le gain
+vient de la sélection des composantes (ablation, DEC-22). Un seul chemin historique :
+à confirmer en conditions réelles.
+
+### Ajouté
+- Contrôle qualité des cours : les sauts aberrants (regroupements, scissions mal ajustés
+  par Yahoo) découpent la série en segments, et une position détenue est soldée « OST » (DEC-17).
+- Protocole apprentissage (2017-2021) / test (2022 → aujourd'hui), historique de 10 ans,
+  outil `src/calibrate.py` (DEC-18).
+
+### Modifié
+- Score technique réduit aux composantes ayant un effet mesuré : tendances, MACD, volume.
+  Histogramme MACD, RSI, Bollinger et volatilité passent à un poids nul (DEC-19).
+- **Confiance = probabilité calibrée de battre le CAC 40 à 3 mois** (44 à 49 %, moyenne
+  47 %) ; les plafonds fondamentaux deviennent des alertes (DEC-20).
+- Montant identique pour chaque achat : `trading.order_amount` (DEC-21).
+- Le backtest par défaut porte sur la période de test (depuis 2022).
+
+### Supprimé
+- `scoring.confidence_scale`, `trading.max_order_amount`, `trading.order_sizing.*`.
+
 ## [1.1.0] — 2026-09-29 — Corrections de l'audit
 
 ### Résultat de référence

@@ -549,3 +549,71 @@ de la branche `fix/audit-corrections`.
 - **Écarté** : un dimensionnement de type Kelly, proportionnel à l'avantage. Avec un
   avantage de 1 à 2 points de probabilité, estimé avec incertitude, il serait quasi nul
   et très instable.
+
+---
+
+## DEC-22 — Évaluation hors échantillon (2022-01 → 2026-09)
+
+Période de test jamais utilisée pour un réglage (DEC-18). Elle inclut la baisse de 2022.
+Fondamentaux désactivés, capital de 20 000 €, runs du 2026-09-29.
+
+### Fiabilité de la confiance (`python src/calibrate.py evaluate`, 5 220 observations)
+
+| Tranche de score | n | Probabilité prévue | Fréquence observée |
+|---|---:|---:|---:|
+| < −5,5 | 516 | 43,7 % | 48,1 % |
+| −5,5 à −0,1 | 1 633 | 43,7 % | 43,2 % |
+| −0,1 à 3,5 | 1 120 | 48,2 % | 48,0 % |
+| 3,5 à 5,5 | 460 | 49,3 % | 50,4 % |
+| ≥ 5,5 | 1 491 | 49,3 % | 48,5 % |
+
+- Moyenne de référence stable (46,9 % en test contre 47,0 % en apprentissage). Quatre
+  tranches sur cinq tombent à ±1 point de la prévision.
+- Exception : la tranche la plus baissière a davantage rebondi que prévu (48,1 % contre
+  43,7 %). Les titres les plus massacrés ont rebondi, notamment après 2022.
+- L'avantage reste **faible** : corrélation de rang score/rendement de +0,04, tranche haute
+  à +1,9 point de rang (t = 1,5, non significatif seul). Il va dans le sens prévu, mais ce
+  n'est pas une machine à surperformer.
+
+### Backtest sur la période de test
+
+| | Ancienne version (`master`) | Nouveau code, anciens poids | **Nouvelle version** | ETF CAC 40 |
+|---|---:|---:|---:|---:|
+| Rendement total | +19,0 % | +18,7 % | **+46,2 %** | +29,6 % |
+| Rendement annualisé | 3,7 % | 3,7 % | **8,4 %** | 5,6 % |
+| Volatilité | 14,3 % | 14,6 % | 16,0 % | 16,3 % |
+| Sharpe (rf = 0) | 0,33 | 0,32 | **0,57** | 0,41 |
+| Drawdown max | −23,3 % | −25,0 % | −20,9 % | −20,9 % |
+
+- **L'ancienne version fait moins bien que l'ETF sur 2022-2026.** Son +37 % sur 2024-2026
+  (CHANGELOG 1.1.0) tenait donc largement à la période choisie.
+- **Ablation** : le nouveau code avec les anciens poids donne le même résultat que
+  l'ancienne version. Le gain vient donc presque entièrement de la **sélection des
+  composantes** (DEC-19). La confiance calibrée et les montants égaux rendent l'outil plus
+  honnête sans changer le rendement.
+- Tous les achats du test tombent dans la tranche haute (49,3 %) : le seuil d'achat
+  (score ≥ 4) sélectionne déjà la meilleure tranche. Les achats sont départagés par le
+  score technique.
+- L'ancienne version n'a détenu ni Atos ni Vivendi au moment de leurs sauts de cours. Le
+  contrôle qualité (DEC-17) ne contribue donc pas à l'écart.
+
+### Réserves
+
+- **Un seul chemin historique** (57 mois) : +2,7 points par an d'écart avec l'ETF, c'est
+  encourageant mais compatible avec de la chance. Le t de la tranche haute (1,5) invite à
+  la prudence.
+- **Biais du survivant** : l'univers est la composition actuelle, sur 10 ans. Il flatte la
+  stratégie mais pas l'ETF, qui contient les sortants : la comparaison est biaisée en
+  faveur de la stratégie.
+- **Degré de liberté du chercheur** : l'idée de retirer des composantes est née d'une
+  étude exploratoire sur 2024-2026, qui fait partie du test. La décision elle-même repose
+  sur une règle fixée à l'avance et appliquée à l'apprentissage seul, mais l'intention
+  préexistait.
+- La mesure porte sur la partie **technique** : l'effet des fondamentaux sur la
+  recommandation reste non mesuré.
+
+### Décision
+
+Fusion dans `master`. La nouvelle version est à la fois plus honnête (confiance mesurée,
+données contrôlées) et meilleure hors échantillon. Prochaine étape recommandée : suivre
+l'écart avec l'ETF en conditions réelles avant d'engager davantage de capital.
