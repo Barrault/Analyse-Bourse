@@ -86,3 +86,26 @@ def test_rebalance_frequencies(prices, backtester, frequency, expected):
 def test_unknown_rebalance_frequency_is_rejected(backtester):
     with pytest.raises(ValueError, match="frequency"):
         backtester.rebalance_dates("2024-01-01", "2024-12-31", "daily")
+
+
+# ----------------------- Exécution des ordres ----------------------- #
+
+def buy_signal(price, confidence=1.0):
+    return {"company_name": "Test", "price": price, "confidence": confidence}
+
+
+def test_buys_a_whole_number_of_shares_within_budget(backtester):
+    backtester._execute_buy("SAF.PA", buy_signal(335.10), pd.Timestamp("2024-01-02"))
+
+    trade = backtester.trades[-1]
+    assert trade.quantity == 2  # 1000€ max -> 2 x 335,10€ (et non 2,98 actions)
+    assert trade.amount == pytest.approx(670.20)
+    assert trade.net_cost == pytest.approx(670.20 + 1.90)
+    assert trade.net_cost <= 1000
+    assert backtester.cash == pytest.approx(backtester.initial_cash - trade.net_cost)
+
+
+def test_skips_stocks_whose_single_share_exceeds_the_budget(backtester):
+    backtester._execute_buy("RMS.PA", buy_signal(2100.0), pd.Timestamp("2024-01-02"))
+    assert backtester.trades == []
+    assert backtester.cash == backtester.initial_cash

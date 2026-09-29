@@ -3,6 +3,7 @@ Backtester pour CAC40 Analyzer
 Simule les trades réels avec frais Bourse Direct 2024-2026
 """
 # -*- coding: utf-8 -*-
+import math
 import sys
 from dataclasses import dataclass
 from typing import Dict, List, Optional
@@ -49,9 +50,9 @@ class Trade:
     ticker: str
     company_name: str
     side: str  # "BUY" or "SELL"
-    quantity: float
+    quantity: int
     price: float
-    amount: float
+    amount: float  # montant brut (quantité x prix), hors frais
     fees: float
     net_cost: float  # amount + fees (for buy) or amount - fees (for sell)
     recommendation: str
@@ -66,7 +67,7 @@ class Position:
     buy_date: pd.Timestamp
     buy_price: float
     buy_fees: float
-    quantity: float
+    quantity: int
     current_price: float = 0.0
     pnl: float = 0.0
     pnl_pct: float = 0.0
@@ -251,7 +252,7 @@ class Backtester:
 
         print(f"\n📉 VENTES proposées: {len(sells)}")
         for ticker, pos, analysis in sells:
-            print(f"  - {analysis['company_name']}: Prix={analysis['price']:.2f}€ | Action suggérée: {analysis['recommendation']} | Quantité={pos.quantity:.2f}")
+            print(f"  - {analysis['company_name']}: Prix={analysis['price']:.2f}€ | Action suggérée: {analysis['recommendation']} | Quantité={pos.quantity}")
 
         print(f"📈 ACHATS proposés: {len(buys)}")
         for ticker, analysis in buys:
@@ -318,14 +319,18 @@ class Backtester:
             print(f"  ✗ ACHAT {analysis['company_name']}: Pas assez de cash ({self.cash:.2f}€ < {min_order:.2f}€)")
             return
 
-        fees = calculate_fees(order_amount)
-        actual_amount = order_amount - fees
+        # Nombre ENTIER d'actions (pas de fractions chez Bourse Direct, cf. DEC-10) tel que
+        # montant brut + frais <= budget. Les paliers de frais étant croissants,
+        # frais(brut) <= frais(budget) garantit que le total tient dans le budget.
         price = analysis["price"]
-        quantity = actual_amount / price
-
-        if self.cash < order_amount:
-            print(f"  ✗ ACHAT {analysis['company_name']}: Cash insuffisant")
+        quantity = math.floor((order_amount - calculate_fees(order_amount)) / price)
+        if quantity < 1:
+            print(f"  ✗ ACHAT {analysis['company_name']}: 1 action ({price:.2f}€) dépasse le budget de {order_amount:.2f}€")
             return
+
+        gross_amount = quantity * price
+        fees = calculate_fees(gross_amount)
+        total_cost = gross_amount + fees
 
         position = Position(
             ticker=ticker,
@@ -344,19 +349,19 @@ class Backtester:
             side="BUY",
             quantity=quantity,
             price=price,
-            amount=actual_amount,
+            amount=gross_amount,
             fees=fees,
-            net_cost=order_amount,
+            net_cost=total_cost,
             recommendation="ACHAT",
             confidence=analysis["confidence"],
             entry_confidence=confidence
         )
 
         self.trades.append(trade)
-        self.cash -= order_amount
+        self.cash -= total_cost
         self.positions[ticker] = position
 
-        print(f"  ✓ ACHAT {analysis['company_name']}: {quantity:.2f} @ {price:.2f}€ ({order_amount:.2f}€)")
+        print(f"  ✓ ACHAT {analysis['company_name']}: {quantity} @ {price:.2f}€ ({total_cost:.2f}€ frais inclus)")
         print(f"    Confiance: {analysis['confidence']:.2%} | Frais: {fees:.2f}€")
 
     def mark_to_market(self, date: pd.Timestamp):
@@ -579,7 +584,7 @@ class Backtester:
         if last.positions:
             print(f"\n📌 POSITIONS FINALES:")
             for pos in sorted(last.positions, key=lambda p: p.pnl, reverse=True):
-                print(f"  {pos.company_name:20s}: {pos.quantity:>6.2f} @ {pos.current_price:>7.2f}€ | PnL: {pos.pnl:>8.2f}€ ({pos.pnl_pct:>6.2f}%)")
+                print(f"  {pos.company_name:20s}: {pos.quantity:>6d} @ {pos.current_price:>7.2f}€ | PnL: {pos.pnl:>8.2f}€ ({pos.pnl_pct:>6.2f}%)")
 
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')

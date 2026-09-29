@@ -228,3 +228,22 @@ de la branche `fix/audit-corrections`.
   possible pour comparer, en connaissance du biais, qui est aussi affiché en tête du run.
   Tests : `test_signal_is_unchanged_when_same_day_and_future_data_change` falsifie la
   clôture du jour et le futur, et vérifie que le signal ne bouge pas.
+
+---
+
+## DEC-10 — Actions entières (A4)
+
+- **Contexte** : la quantité achetée valait `budget / prix`, soit des fractions d'action
+  (0,97 Safran dans le dernier log). Bourse Direct ne propose pas de fractions : le
+  backtest investissait 100 % du budget là où la réalité en laisse une partie en cash, et
+  il achetait des titres inaccessibles (1 action Hermès > 2 000 € avec un plafond de 1 000 €).
+- **Décision** : `quantité = floor((budget − frais(budget)) / prix)`, avec des frais
+  recalculés sur le montant brut réel. Les paliers de frais étant croissants, on a
+  `brut + frais(brut) ≤ budget`. Si moins d'une action tient dans le budget, l'achat est
+  ignoré et journalisé. `Trade.amount` vaut désormais le **brut** (quantité × prix) et
+  `net_cost` le brut + frais : les deux champs ont un sens unique et documenté.
+- **Écarté** : autoriser 1 action au-delà du budget quand le cash le permet. Cela
+  contournerait la règle de dimensionnement par la confiance et concentrerait le
+  portefeuille sur les titres les plus chers.
+- **Conséquences** : les titres dont le cours dépasse `max_order_amount` (Hermès…) ne sont
+  jamais achetés avec la config actuelle. Relever `max_order_amount` si on veut les inclure.
