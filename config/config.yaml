@@ -39,38 +39,42 @@ indicators:
 
 # ============================== SCORING WEIGHTS ==============================
 scoring:
-  # Trend Analysis Weights
-  trends:
-    long_term: 2.0        # Close > SMA200
-    mid_term: 1.2         # SMA50 > SMA200
-    short_term: 1.0       # SMA20 > SMA50
+  # Composantes techniques. Poids à 0 : aucun effet mesuré sur la période d'apprentissage
+  # 2017-07 -> 2021-09 (python src/calibrate.py features, règle de DEC-18). Détail : DEC-19.
+  # Écart = rang percentile du rendement relatif à 3 mois, condition vraie - fausse.
 
-  # Momentum Weights
+  # Trend Analysis Weights (appliqués en + si vrai, en - si faux)
+  trends:
+    long_term: 2.0        # Close > SMA200         écart +4.6  t=3.1
+    mid_term: 1.2         # SMA50 > SMA200         écart +4.2  t=2.4
+    short_term: 1.0       # SMA20 > SMA50          écart +2.4  t=1.9
+
+  # Momentum Weights (appliqués en + si vrai, en - si faux)
   momentum:
-    macd_line: 1.8        # MACD > 0
-    macd_histogram: 1.5   # MACD Histogram > 0
+    macd_line: 1.8        # MACD > 0               écart +2.5  t=2.1
+    macd_histogram: 0.0   # Histogramme > 0        écart -0.4  t=-0.3  (était 1.5)
 
   # RSI Weights
   rsi:
-    neutral_zone: 0.5     # neutral_lower <= RSI <= neutral_upper (30-50 : 0 point)
-    oversold: 1.0         # RSI < oversold_threshold
-    overbought: -1.5      # RSI > overbought_threshold
+    neutral_zone: 0.0     # neutral_lower <= RSI <= neutral_upper   écart +0.4  t=0.4  (était 0.5)
+    oversold: 0.0         # RSI < oversold_threshold                écart +0.9  t=0.4  (était 1.0)
+    overbought: 0.0       # RSI > overbought_threshold              écart +2.1  t=0.7  (était -1.5, signe contraire)
 
   # Bollinger Bands Weights
   bollinger:
-    above_upper: 0.8      # Price > Upper Band
-    below_lower: -1.5     # Price < Lower Band
+    above_upper: 0.0      # Price > Upper Band     écart -2.1  t=-1.1 (était 0.8, signe contraire)
+    below_lower: 0.0      # Price < Lower Band     écart +4.0  t=1.3  (était -1.5, signe contraire)
 
   # Volume Weights
   volume:
-    high_volume: 0.5      # Volume > SMA20
-    low_volume: -0.5      # Volume < SMA20
+    high_volume: 0.5      # Volume > SMA20         écart +1.9  t=1.8
+    low_volume: -0.5      # Volume <= SMA20
 
   # Volatility Weights (ATR-based)
   volatility:
     threshold: 0.04       # ATR/Close threshold
-    low_volatility: 0.8   # ATR/Close < threshold
-    high_volatility: -0.8 # ATR/Close >= threshold
+    low_volatility: 0.0   # ATR/Close < threshold  écart +3.3  t=0.9  (était 0.8)
+    high_volatility: 0.0  # ATR/Close >= threshold (était -0.8)
 
   # Fundamental Analysis Weights
   fundamentals:

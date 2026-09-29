@@ -458,3 +458,40 @@ de la branche `fix/audit-corrections`.
     avec un test qui contient une baisse, suffit pour ce projet.
 - **Limites** : sur 10 ans, le biais du survivant est plus fort (univers actuel). Six
   titres sont cotés après 2017 et n'entrent dans les données qu'à leur introduction.
+
+---
+
+## DEC-19 — Sélection des composantes techniques
+
+- **Contexte** : application de la règle de DEC-18 sur l'apprentissage 2017-07 → 2021-09
+  (4 538 observations, 50 mois ; sortie de `python src/calibrate.py features`).
+
+  | Composante | Poids | Écart de rang | t | Décision |
+  |---|---:|---:|---:|---|
+  | Cours > SMA200 | ±2,0 | +4,6 | 3,1 | garder |
+  | SMA50 > SMA200 | ±1,2 | +4,2 | 2,4 | garder |
+  | SMA20 > SMA50 | ±1,0 | +2,4 | 1,9 | garder |
+  | MACD > 0 | ±1,8 | +2,5 | 2,1 | garder |
+  | Histogramme MACD > 0 | ±1,5 | −0,4 | −0,3 | 0 |
+  | RSI zone neutre | +0,5 | +0,4 | 0,4 | 0 |
+  | RSI survente | +1,0 | +0,9 | 0,4 | 0 |
+  | RSI surachat | −1,5 | +2,1 | 0,7 | 0 (signe contraire) |
+  | Au-dessus de la bande de Bollinger haute | +0,8 | −2,1 | −1,1 | 0 (signe contraire) |
+  | Sous la bande de Bollinger basse | −1,5 | +4,0 | 1,3 | 0 (signe contraire) |
+  | Volume > moyenne | ±0,5 | +1,9 | 1,8 | garder |
+  | Volatilité faible | ±0,8 | +3,3 | 0,9 | 0 |
+
+- **Décision** : poids mis à 0 dans `config.yaml`. Chaque ligne est commentée avec son écart
+  et son t, pour garder la trace du pourquoi. Une composante de poids nul n'affiche plus de
+  motif : écrire « RSI haut : risque de correction » alors que la règle n'a aucun effet
+  mesuré induirait l'utilisateur en erreur. Le motif « Volume faible » est reformulé
+  (« le mouvement manque de soutien ») pour correspondre à sa contribution négative.
+- **Cohérence** : ces conclusions rejoignent l'étude exploratoire faite sur 2024-2026, que
+  cette décision **n'a pas utilisée**. Deux périodes distinctes pointent dans le même sens :
+  seules la tendance et le momentum portent l'information, conformément à l'effet momentum
+  documenté en finance. Seule divergence : le volume, gardé ici (t = 1,8), était neutre sur
+  2024-2026.
+- **Écarté** : inverser les signes contraires (RSI > 70 en bonus, par exemple). Les t
+  (0,7 à 1,3) ne le justifient pas, et ce serait une optimisation sur l'échantillon.
+- **Conséquences** : le score technique va désormais de −6,5 à +6,5. Les seuils (achat 4,
+  vente −2) sont conservés : un ACHAT exige des tendances long et moyen terme haussières.

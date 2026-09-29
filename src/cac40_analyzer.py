@@ -220,89 +220,63 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
     score = 0
     reasons: List[str] = []
 
-    # Long-term trend: Close > SMA200
+    def add(points: float, reason: str):
+        """Ajoute une contribution ; une composante de poids nul n'a ni effet ni motif
+        affiché (poids mis à 0 faute d'effet mesuré, cf. DEC-19)."""
+        nonlocal score
+        if points:
+            score += points
+            reasons.append(reason)
+
+    trends, momentum = weights['trends'], weights['momentum']
     if s.close > s.sma200:
-        score += weights['trends']['long_term']
-        reasons.append("+ Tendance long terme : Le prix de l'action a augmenté ces derniers mois, montrant que les investisseurs sont confiants.")
+        add(trends['long_term'], "+ Tendance long terme : Le prix de l'action a augmenté ces derniers mois, montrant que les investisseurs sont confiants.")
     else:
-        score -= weights['trends']['long_term']
-        reasons.append("- Tendance long terme : Le prix de l'action a baissé ces derniers mois, montrant que les investisseurs sont moins confiants.")
+        add(-trends['long_term'], "- Tendance long terme : Le prix de l'action a baissé ces derniers mois, montrant que les investisseurs sont moins confiants.")
 
-    # Mid-term trend: SMA50 > SMA200
     if s.sma50 > s.sma200:
-        score += weights['trends']['mid_term']
-        reasons.append("+ Tendance moyen terme : Le prix de l'action a augmenté ces dernières semaines.")
+        add(trends['mid_term'], "+ Tendance moyen terme : Le prix de l'action a augmenté ces dernières semaines.")
     else:
-        score -= weights['trends']['mid_term']
-        reasons.append("- Tendance moyen terme : Le prix de l'action stagne ou baisse ces dernières semaines.")
+        add(-trends['mid_term'], "- Tendance moyen terme : Le prix de l'action stagne ou baisse ces dernières semaines.")
 
-    # Short-term trend: SMA20 > SMA50
     if s.sma20 > s.sma50:
-        score += weights['trends']['short_term']
-        reasons.append("+ Tendance court terme : Le prix de l'action a augmenté ces derniers jours, montrant un élan récent.")
+        add(trends['short_term'], "+ Tendance court terme : Le prix de l'action a augmenté ces derniers jours, montrant un élan récent.")
     else:
-        score -= weights['trends']['short_term']
-        reasons.append("- Tendance court terme : Le prix de l'action baisse ou stagne ces derniers jours.")
+        add(-trends['short_term'], "- Tendance court terme : Le prix de l'action baisse ou stagne ces derniers jours.")
 
-    # Momentum: MACD > 0
     if s.macd > 0:
-        score += weights['momentum']['macd_line']
-        reasons.append("+ Momentum : Le prix de l'action continue de monter récemment, les acheteurs sont actifs.")
+        add(momentum['macd_line'], "+ Momentum : Le prix de l'action continue de monter récemment, les acheteurs sont actifs.")
     else:
-        score -= weights['momentum']['macd_line']
-        reasons.append("- Momentum : Le prix de l'action pourrait ralentir ou baisser, prudence.")
+        add(-momentum['macd_line'], "- Momentum : Le prix de l'action pourrait ralentir ou baisser, prudence.")
 
-    # MACD Histogram > 0
     if s.macd_hist > 0:
-        score += weights['momentum']['macd_histogram']
-        reasons.append("+ Accélération : Le mouvement haussier s'accélère, montrant un fort intérêt.")
+        add(momentum['macd_histogram'], "+ Accélération : Le mouvement haussier s'accélère, montrant un fort intérêt.")
     else:
-        score -= weights['momentum']['macd_histogram']
-        reasons.append("- Accélération : Le mouvement haussier ralentit ou le prix baisse.")
+        add(-momentum['macd_histogram'], "- Accélération : Le mouvement haussier ralentit ou le prix baisse.")
 
-    # RSI Analysis
-    neutral_lower = config.get('indicators.rsi.neutral_lower')
-    neutral_upper = config.get('indicators.rsi.neutral_upper')
-    oversold = config.get('indicators.rsi.oversold_threshold')
-    overbought = config.get('indicators.rsi.overbought_threshold')
+    rsi_params = config.get_section('indicators')['rsi']
+    if rsi_params['neutral_lower'] <= s.rsi14 <= rsi_params['neutral_upper']:
+        add(weights['rsi']['neutral_zone'], "* RSI normal : Le prix est équilibré, ni trop acheté ni trop vendu.")
+    elif s.rsi14 < rsi_params['oversold_threshold']:
+        add(weights['rsi']['oversold'], "* RSI bas : Le prix a beaucoup baissé, possibilité de rebond.")
+    elif s.rsi14 > rsi_params['overbought_threshold']:
+        add(weights['rsi']['overbought'], "- RSI haut : Le prix a beaucoup monté, risque de correction.")
 
-    if neutral_lower <= s.rsi14 <= neutral_upper:
-        score += weights['rsi']['neutral_zone']
-        reasons.append("* RSI normal : Le prix est équilibré, ni trop acheté ni trop vendu.")
-    elif s.rsi14 < oversold:
-        score += weights['rsi']['oversold']
-        reasons.append("* RSI bas : Le prix a beaucoup baissé, possibilité de rebond.")
-    elif s.rsi14 > overbought:
-        score += weights['rsi']['overbought']
-        reasons.append("- RSI haut : Le prix a beaucoup monté, risque de correction.")
-
-    # Bollinger Bands
     if s.close > s.bb_upper:
-        score += weights['bollinger']['above_upper']
-        reasons.append("+ Prix élevé récemment : Le prix monte plus que d'habitude, beaucoup d'intérêt des investisseurs.")
+        add(weights['bollinger']['above_upper'], "+ Prix élevé récemment : Le prix monte plus que d'habitude, beaucoup d'intérêt des investisseurs.")
     elif s.close < s.bb_lower:
-        score += weights['bollinger']['below_lower']
-        reasons.append("- Prix bas récemment : Le prix descend plus que d'habitude, possible manque d'intérêt ou ventes fortes.")
-    else:
-        reasons.append("* Prix normal : Le prix évolue dans sa zone habituelle.")
+        add(weights['bollinger']['below_lower'], "- Prix bas récemment : Le prix descend plus que d'habitude, possible manque d'intérêt ou ventes fortes.")
 
-    # Volume
     if s.vol is not None and s.vol_sma20 is not None:
         if s.vol > s.vol_sma20:
-            score += weights['volume']['high_volume']
-            reasons.append("+ Volume élevé : Beaucoup d'achats et ventes, le mouvement est soutenu.")
+            add(weights['volume']['high_volume'], "+ Volume élevé : Beaucoup d'achats et ventes, le mouvement est soutenu.")
         else:
-            score += weights['volume']['low_volume']
-            reasons.append("* Volume faible : Peu d'investisseurs bougent, le prix stagne.")
+            add(weights['volume']['low_volume'], "- Volume faible : Peu d'investisseurs bougent, le mouvement manque de soutien.")
 
-    # Volatility (ATR-based)
-    volatility_threshold = config.get('scoring.volatility.threshold')
-    if s.atr14 / s.close < volatility_threshold:
-        score += weights['volatility']['low_volatility']
-        reasons.append("+ Volatilité faible : Le prix varie peu, risque limité.")
+    if s.atr14 / s.close < weights['volatility']['threshold']:
+        add(weights['volatility']['low_volatility'], "+ Volatilité faible : Le prix varie peu, risque limité.")
     else:
-        score += weights['volatility']['high_volatility']
-        reasons.append("* Volatilité élevée : Le prix peut beaucoup bouger, prudence.")
+        add(weights['volatility']['high_volatility'], "* Volatilité élevée : Le prix peut beaucoup bouger, prudence.")
 
     # Score des seuls indicateurs techniques : c'est lui qui est calibré (cf. DEC-20)
     technical_score = score

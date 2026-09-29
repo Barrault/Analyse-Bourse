@@ -50,3 +50,12 @@ def test_recommendation_summary_includes_price_and_action():
     )
     for expected in ("Pernod Ricard", "ACHAT", "152.34", "16.67"):
         assert expected in summary
+
+
+def test_zero_weight_components_neither_score_nor_show_a_reason(snapshot):
+    # RSI > 70 : poids mis à 0 faute d'effet mesuré (DEC-19)
+    overbought = snapshot()
+    overbought.rsi14 = 80.0
+    outcome = compute_score(overbought)
+    assert not any("RSI" in reason for reason in outcome["reasons"])
+    assert outcome["technical_score"] == compute_score(snapshot())["technical_score"]
