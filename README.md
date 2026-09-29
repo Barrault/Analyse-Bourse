@@ -46,18 +46,21 @@ de la stratégie et du benchmark, PnL par tranche de confiance) dans
 | Tendance | Cours > SMA200, SMA50 > SMA200, SMA20 > SMA50 | ±2,0 / ±1,2 / ±1,0 |
 | Momentum | MACD > 0 | ±1,8 |
 | Volume | Volume > moyenne sur 20 jours | ±0,5 |
-| Fondamentaux | PE par tranches, P/B qualifié par le ROE implicite, croisement PE × P/B, dividende, pertes (BPA < 0) | voir `scoring.fundamentals` |
 
 Les autres règles techniques (histogramme MACD, RSI, Bollinger, volatilité) ont un
 poids nul : elles n'ont montré aucun effet mesurable sur 2017-2021 (DEC-19).
 
-- Recommandation : `score ≥ thresholds.buy` → ACHAT, `score ≤ thresholds.sell` → VENTE,
-  sinon NEUTRE.
+- Recommandation : `score technique ≥ thresholds.buy` → ACHAT, `≤ thresholds.sell` →
+  VENTE, sinon NEUTRE. L'analyse du jour applique donc exactement la stratégie testée.
+- **Fondamentaux** (PE, P/B, dividende) : affichés pour information, sans effet sur la
+  décision, faute d'historique pour les tester (DEC-24). Le dividende, seul testable, a
+  changé d'effet selon les périodes (DEC-23). **Une seule exception** : pas d'ACHAT sur
+  une entreprise en perte (`fundamentals.exclude_loss_making`).
 - **Confiance = probabilité historique de battre le CAC 40 à 3 mois** pour ce niveau de
   score technique : p pour un ACHAT, 1 − p pour une VENTE. Elle est calibrée sur
   2017-2021 et vérifiée sur 2022-2026. Elle va de 44 % à 49 %, pour une moyenne de 47 % :
-  l'avantage du score est réel mais modeste. Les fondamentaux n'y entrent pas, faute
-  d'historique ; ils produisent des alertes.
+  l'avantage du score est réel mais modeste. Les ACHAT de même confiance sont départagés
+  par le score technique, affiché sur chaque ligne.
 - Montant suggéré (ACHAT seulement) : `trading.order_amount`, identique pour tous.
 
 ### Backtest
@@ -89,6 +92,7 @@ et vérifiés sur la période de **test** (2022 → aujourd'hui) :
 python src/calibrate.py features    # effet de chaque composante (apprentissage)
 python src/calibrate.py calibrate   # table score -> probabilité à reporter dans la config
 python src/calibrate.py evaluate    # fiabilité de cette table sur la période de test
+python src/calibrate.py dividend    # le rendement du dividende prédit-il la performance ?
 ```
 
 Ne jamais régler un paramètre en regardant la période de test : le résultat du backtest
@@ -98,8 +102,9 @@ perdrait toute valeur.
 
 - **Biais du survivant** : l'univers correspond à la composition actuelle, et les
   sociétés disparues depuis 2024 manquent.
-- **Fondamentaux non historiques** : le backtest par défaut évalue donc la partie technique
-  de la stratégie seulement.
+- **Fondamentaux non historiques** : non testés, ils n'entrent pas dans la décision. Le
+  filtre « entreprise en perte » est le seul élément de la stratégie non vérifié par les
+  données.
 - **Un seul chemin historique** : l'avance sur l'ETF en test (+2,7 points par an) est
   encourageante, mais reste compatible avec de la chance (DEC-22).
 - Stop-loss vérifié une fois par période, pas en continu.

@@ -4,6 +4,23 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 identifiants (A1, S2…) renvoient à [docs/AUDIT.md](docs/AUDIT.md) et les choix sont
 justifiés dans [docs/DECISIONS.md](docs/DECISIONS.md).
 
+## [1.3.0] — 2026-09-29 — Décision sur ce qui est mesuré
+
+### Modifié
+- **La recommandation ne dépend plus que du score technique**, le seul mesuré. L'analyse
+  du jour applique désormais exactement la stratégie évaluée par le backtest (DEC-24).
+- Fondamentaux (PE, P/B, dividende) affichés pour information ; seul le filtre
+  « pas d'ACHAT sur une entreprise en perte » agit (`fundamentals.exclude_loss_making`).
+- Chaque ligne affiche le score technique, qui départage les ACHAT de même confiance.
+
+### Ajouté
+- `python src/calibrate.py dividend` : test du rendement du dividende reconstitué depuis
+  l'historique Yahoo. Écarté, car son effet s'inverse entre 2017-2021 et 2022-2026 (DEC-23).
+
+### Supprimé
+- `scoring.fundamentals` (poids, tranches et seuils fixés à la main) et les alertes
+  Value Support / Panic Sell.
+
 ## [1.2.0] — 2026-09-29 — Confiance calibrée
 
 ### Résultat hors échantillon (2022-01 → 2026-09, aucun réglage choisi sur cette période)

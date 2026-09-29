@@ -1,6 +1,6 @@
 # Pistes d'amélioration
 
-Mises à jour après la version 1.2.0 (2026-09-29). Par ordre de valeur estimée.
+Mises à jour après la version 1.3.0 (2026-09-29). Par ordre de valeur estimée.
 
 1. **Suivi en conditions réelles** : noter chaque mois les recommandations suivies et
    comparer à l'ETF CAC 40. C'est le seul test qui ne souffre d'aucun biais de backtest.
@@ -15,8 +15,10 @@ Mises à jour après la version 1.2.0 (2026-09-29). Par ordre de valeur estimée
 5. **Allocation du capital** : le capital est investi en quelques mois, puis la plupart
    des signaux sont rejetés faute de cash. Envisager une rotation (vendre la ligne la plus
    faible pour un signal nettement meilleur) ou un nombre maximal de lignes.
-6. **Fondamentaux historiques** : une source point-in-time permettrait de mesurer et de
-   calibrer la partie fondamentale, aujourd'hui non vérifiée.
+6. **Fondamentaux historiques** : une source point-in-time permettrait de tester E/P et
+   B/P, et de revoir DEC-24. Le dividende montre que le facteur « value » dépend du régime
+   de taux (DEC-23) : il faudrait le tester sur plusieurs cycles, pas une seule période.
+   Le filtre « entreprise en perte » est à juger en suivi réel.
 7. **Univers historique** : utiliser des compositions d'indice datées pour supprimer le
    biais du survivant, plus fort sur 10 ans.
 8. **Cache disque des cotations** : utile pour itérer vite sur le calibrage.
