@@ -167,3 +167,25 @@ de la branche `fix/audit-corrections`.
 - **Conséquences** : pour un même score, la confiance est plus basse qu'avant, donc les
   ordres sont plus petits. Les plafonds métier (0,40 si fondamentaux faibles, 0,90
   plancher en cas de pertes, etc.) sont inchangés.
+
+---
+
+## DEC-08 — Performance du backtest (P1)
+
+- **Contexte** : à chaque rebalance, et pour chaque ticker, `analyze_on_date` recalculait
+  tous les indicateurs sur 5 ans et appelait `yf.Ticker(t).info` en réseau, soit environ
+  3 500 recalculs complets et 3 500 requêtes HTTP par run (30-45 min, avec un risque de
+  limitation de débit par Yahoo).
+- **Décision** : indicateurs calculés **une fois** par ticker au chargement
+  (`add_price_data`), puis tronqués à la date analysée ; fondamentaux mis en cache par
+  ticker pour la durée du run.
+- **Justification de l'équivalence** : SMA, EMA, RSI (EWM), Bollinger et ATR sont des
+  calculs causaux, où la valeur en D ne dépend que des données ≤ D. Pré-calculer sur tout
+  l'historique puis tronquer donne donc le même résultat que calculer sur l'historique
+  tronqué. Le test `test_precomputed_indicators_match_a_computation_on_truncated_history`
+  vérifie cette égalité.
+- **Écarté** : un cache disque (CSV/SQLite, prévu dans l'ancienne roadmap). Il est utile
+  entre deux runs, mais ajoute de l'invalidation à gérer. Le cache mémoire suffit à
+  supprimer l'essentiel du coût.
+- **Conséquences** : `add_price_data()` permet aussi d'injecter des données synthétiques,
+  ce qui rend le moteur testable sans réseau (fixtures `prices` et `no_fundamentals`).

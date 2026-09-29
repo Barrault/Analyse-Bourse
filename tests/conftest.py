@@ -1,4 +1,5 @@
 """Fixtures partagées."""
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -30,3 +31,37 @@ def make_snapshot(pe=None, pb=None, dy=None, eps=None, bullish=True):
 def snapshot():
     """Fabrique d'IndicatorSnapshot : snapshot(pe=..., pb=..., dy=..., eps=..., bullish=...)."""
     return make_snapshot
+
+
+def make_prices(days=400, start="2023-01-02", seed=0, drift=0.0005):
+    """Historique OHLCV synthétique sur jours ouvrés, sans appel réseau."""
+    rng = np.random.default_rng(seed)
+    index = pd.bdate_range(start, periods=days)
+    close = 100 * np.exp(np.cumsum(rng.normal(drift, 0.01, days)))
+    open_ = close * (1 + rng.normal(0, 0.003, days))
+    return pd.DataFrame({
+        "Open": open_,
+        "High": np.maximum(open_, close) * 1.01,
+        "Low": np.minimum(open_, close) * 0.99,
+        "Close": close,
+        "Volume": rng.integers(1_000, 10_000, days).astype(float),
+    }, index=index)
+
+
+@pytest.fixture
+def prices():
+    """Fabrique d'historiques synthétiques : prices(days=..., seed=..., drift=...)."""
+    return make_prices
+
+
+@pytest.fixture
+def no_fundamentals(monkeypatch):
+    """Neutralise les appels Yahoo des fondamentaux et compte les appels."""
+    import backtest
+    calls = []
+
+    def fake(ticker):
+        calls.append(ticker)
+        return {}
+    monkeypatch.setattr(backtest, "fetch_fundamentals_safe", fake)
+    return calls

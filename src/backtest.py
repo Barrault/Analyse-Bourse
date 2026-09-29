@@ -93,6 +93,10 @@ class Backtester:
         self.trades: List[Trade] = []
         self.portfolio_history: List[PortfolioSnapshot] = []
         self.all_data: Dict[str, pd.DataFrame] = {}
+        # Indicateurs calculés une fois par ticker sur tout l'historique : SMA/EMA/rolling
+        # sont causaux, donc la ligne D ne dépend que des données <= D (cf. DEC-08).
+        self.indicators: Dict[str, pd.DataFrame] = {}
+        self._fundamentals_cache: Dict[str, Dict[str, Optional[float]]] = {}
 
     def load_data(self, tickers: List[str], period: str = "3y"):
         """Télécharge les données historiques pour tous les tickers."""
@@ -107,8 +111,7 @@ class Backtester:
                     progress=False
                 )
                 if df is not None and not df.empty:
-                    df = flatten_columns(df)
-                    self.all_data[ticker] = df
+                    self.add_price_data(ticker, df)
                     if i % 10 == 0:
                         print(f"  ✓ {i}/{len(tickers)} actions téléchargées")
             except Exception as e:
@@ -116,13 +119,24 @@ class Backtester:
 
         print(f"✓ {len(self.all_data)} actions chargées")
 
+    def add_price_data(self, ticker: str, df: pd.DataFrame):
+        """Enregistre l'historique de prix d'un ticker et pré-calcule ses indicateurs."""
+        df = flatten_columns(df)
+        self.all_data[ticker] = df
+        indicators = prepare_indicators(df)
+        if indicators is not None and not indicators.empty:
+            self.indicators[ticker] = indicators
+
+    def _fundamentals(self, ticker: str) -> Dict[str, Optional[float]]:
+        """Fondamentaux Yahoo, récupérés une seule fois par ticker et par run."""
+        if ticker not in self._fundamentals_cache:
+            self._fundamentals_cache[ticker] = fetch_fundamentals_safe(ticker)
+        return self._fundamentals_cache[ticker]
+
     def analyze_on_date(self, ticker: str, date: pd.Timestamp) -> Optional[Dict]:
         """Analyse un ticker à une date spécifique."""
-        if ticker not in self.all_data:
-            return None
-
-        df = prepare_indicators(self.all_data[ticker])
-        if df is None or df.empty:
+        df = self.indicators.get(ticker)
+        if df is None:
             return None
 
         # Trouver la dernière donnée avant ou à la date
@@ -130,8 +144,7 @@ class Backtester:
         if df_up_to_date.empty:
             return None
 
-        fundamentals = fetch_fundamentals_safe(ticker)
-        snap = build_snapshot(df_up_to_date, fundamentals)
+        snap = build_snapshot(df_up_to_date, self._fundamentals(ticker))
 
         # Vérifier que tous les indicateurs essentiels sont valides
         if snap.close is None or snap.sma200 is None:
