@@ -342,3 +342,17 @@ de la branche `fix/audit-corrections`.
     payantes Euronext). Le commentaire en tête de liste et le README le signalent. Le nom
     `NOMS_ENTREPRISES` est conservé pour ne pas multiplier les changements ; le
     commentaire précise qu'il s'agit d'un univers de type SBF 120 et non du CAC 40.
+
+---
+
+## DEC-15 — Intégration continue
+
+- **Décision** : workflow GitHub Actions `tests.yml` qui lance `pytest` (hors réseau) sur
+  chaque PR et chaque push sur `master`, en Python 3.10, la version utilisée localement
+  et le minimum déclaré dans `pyproject.toml`.
+- **Justification** : les corrections de cette branche reposent sur des tests de
+  non-régression (anticipation, frais, PnL). Sans exécution automatique, ils cesseraient
+  vite d'être lancés. Les tests réseau restent manuels (`pytest -m network`), car Yahoo
+  n'est pas une dépendance fiable en CI.
+- **Écarté** : une matrice multi-versions et un linter. Pour un projet personnel à un seul
+  interpréteur, cela ajouterait du bruit sans bénéfice.
