@@ -12,7 +12,7 @@ import pandas as pd
 import yfinance as yf
 
 from cac40_analyzer import (
-    compute_score, fetch_fundamentals_safe, flatten_columns,
+    compute_score, fetch_fundamentals_safe, flatten_columns, order_amount_for_confidence,
     build_snapshot, prepare_indicators, NOMS_ENTREPRISES
 )
 from config_loader import config
@@ -267,34 +267,11 @@ class Backtester:
 
     def _execute_buy(self, ticker: str, analysis: Dict, date: pd.Timestamp):
         """Exécute un achat si possible."""
-        # Déterminer la taille de l'ordre depuis la configuration
-        trading_params = config.get_section('trading')
-        order_sizing = trading_params['order_sizing']
-        max_order = order_sizing['max_order_amount']
-        margin_buffer = order_sizing['margin_buffer']
-
-        # Confidence-scaled sizing: confidence <= min threshold -> min spend,
-        # confidence >= max threshold -> max spend, and values in between scale linearly.
-        # Example: min=100€, max=1000€, confidence 0.2 -> 100€, confidence 1.0 -> 1000€.
-        confidence = float(analysis.get('confidence', 0.0)) if analysis is not None else 0.0
-        confidence = min(max(confidence, 0.0), 1.0)
-
+        margin_buffer = config.get('trading.order_sizing.margin_buffer')
+        confidence = float(analysis['confidence'])
         min_order = float(self.min_order_amount)
-        max_order = float(max_order)
-        if max_order < min_order:
-            max_order = min_order
-
-        min_confidence = float(order_sizing['min_confidence_for_min_spend'])
-        max_confidence = float(order_sizing['max_confidence_for_max_spend'])
-
-        if confidence <= min_confidence:
-            desired_amount = min_order
-        elif confidence >= max_confidence:
-            desired_amount = max_order
-        else:
-            span = max_confidence - min_confidence
-            scaled = (confidence - min_confidence) / span if span > 0 else 0.0
-            desired_amount = min_order + scaled * (max_order - min_order)
+        max_order = float(config.get('trading.max_order_amount'))
+        desired_amount = order_amount_for_confidence(confidence, min_order=min_order)
 
         # Respect available cash and safety buffer
         available_for_order = max(self.cash - margin_buffer, 0.0)

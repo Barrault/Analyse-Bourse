@@ -117,6 +117,10 @@ scoring:
       value_support_pe: 11   # VENTE bridée si PE < ... et P/B < ... (titre déjà bradé)
       value_support_pb: 1.1
 
+  # Confiance d'un signal : 0.5 au seuil, 1.0 à `confidence_scale` points au-delà.
+  # 8 points = écart entre le seuil d'achat (4) et un score quasi maximal (~12).
+  confidence_scale: 8
+
   # Thresholds for Recommendations
   thresholds:
     buy: 4                 # Score >= this for ACHAT (stricter: fewer false signals)
@@ -127,17 +131,14 @@ scoring:
 trading:
   # Portfolio
   initial_cash: 20000
-  min_order_amount: 100    # Raised from 100 to reduce small, fee-heavy orders
-  max_order_amount: 1000
+  min_order_amount: 100    # Montant d'un achat à faible confiance
+  max_order_amount: 1000   # Montant d'un achat à confiance maximale
 
-  # Order Sizing Strategy
+  # Order Sizing Strategy : montant linéaire en fonction de la confiance
   order_sizing:
-    type: "confidence_scaled"  # Options: "fixed_percentage", "kelly", "equal_weight", "confidence_scaled"
-    percentage: 0.20          # Kept for compatibility; not used by confidence-scaled sizing
-    min_confidence_for_min_spend: 0.2  # Confidence <= this uses the minimum order amount
-    max_confidence_for_max_spend: 1.0  # Confidence >= this uses the maximum order amount
-    max_order_amount: 1000    # Maximum spend per order for confidence = 1.0
-    margin_buffer: 200        # Keep this amount as safety buffer
+    min_confidence_for_min_spend: 0.2  # Confiance <= ceci -> min_order_amount
+    max_confidence_for_max_spend: 1.0  # Confiance >= ceci -> max_order_amount
+    margin_buffer: 200                 # Trésorerie toujours conservée
 
   # Rebalancing
   rebalance:

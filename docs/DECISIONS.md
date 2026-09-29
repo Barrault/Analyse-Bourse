@@ -142,3 +142,28 @@ de la branche `fix/audit-corrections`.
   valeurs décotées. Le seuil d'achat (4) n'a pas été recalibré : cela relève d'une
   campagne de calibrage sur un backtest désormais honnête (DEC-09), pas d'un correctif.
   Chaque nouveau comportement a un test qui échoue sur l'ancien code.
+
+---
+
+## DEC-07 — Confiance et montant suggéré (S4, S5)
+
+- **Contexte** : la confiance valait `(score − seuil)/|seuil| + 0,5` plafonnée à 1. Avec
+  un seuil d'achat de 4, elle saturait dès un score de 6 et ne distinguait plus un bon
+  signal d'un excellent. Le montant suggéré de l'analyse (`confiance × 1000`) différait
+  du dimensionnement du backtest (min/max interpolé), était affiché pour les NEUTRE et
+  les VENTE, et le tri final mélangeait les trois recommandations.
+- **Décision** :
+  - `signal_confidence(distance)` : 0,5 au seuil, linéaire jusqu'à 1,0 à
+    `scoring.confidence_scale = 8` points au-delà. 8 correspond à l'écart entre le seuil
+    d'achat (4) et un score quasi maximal (~12 ; le maximum théorique est ~14).
+  - `order_amount_for_confidence()` : une seule règle de dimensionnement, utilisée par
+    l'analyse et par le backtest. Le montant suggéré ne concerne que les ACHAT (0 sinon,
+    et masqué à l'affichage).
+  - Tri de la sortie : ACHAT, puis NEUTRE, puis VENTE, par confiance décroissante.
+  - Config : suppression du doublon `order_sizing.max_order_amount` et des clés inertes
+    `order_sizing.type` et `percentage`.
+- **Écarté** : une confiance sigmoïde. Elle est plus « jolie », mais moins lisible et
+  demande un paramètre de plus sans justification empirique à ce stade.
+- **Conséquences** : pour un même score, la confiance est plus basse qu'avant, donc les
+  ordres sont plus petits. Les plafonds métier (0,40 si fondamentaux faibles, 0,90
+  plancher en cas de pertes, etc.) sont inchangés.

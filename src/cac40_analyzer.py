@@ -122,6 +122,38 @@ def prepare_indicators(df: pd.DataFrame) -> Optional[pd.DataFrame]:
 
 # ----------------------- Scoring & Recommendation ----------------------- #
 
+def signal_confidence(distance: float) -> float:
+    """Confiance d'un signal ACHAT/VENTE selon sa distance au seuil franchi.
+
+    0.5 exactement au seuil, puis linéaire jusqu'à 1.0 à `scoring.confidence_scale`
+    points au-delà : la confiance continue de distinguer les signaux forts (cf. DEC-07).
+    """
+    scale = config.get('scoring.confidence_scale')
+    return 0.5 + 0.5 * min(max(distance, 0.0) / scale, 1.0)
+
+
+def order_amount_for_confidence(confidence: float, min_order: Optional[float] = None,
+                                max_order: Optional[float] = None) -> float:
+    """Montant d'achat visé pour une confiance donnée (hors contrainte de trésorerie).
+
+    Confiance <= min_confidence_for_min_spend -> min_order ; >= max_confidence_for_max_spend
+    -> max_order ; interpolation linéaire entre les deux. Partagé par l'analyse et le backtest.
+    """
+    trading = config.get_section('trading')
+    sizing = trading['order_sizing']
+    min_order = float(trading['min_order_amount'] if min_order is None else min_order)
+    max_order = max(float(trading['max_order_amount'] if max_order is None else max_order), min_order)
+    low = float(sizing['min_confidence_for_min_spend'])
+    high = float(sizing['max_confidence_for_max_spend'])
+
+    confidence = min(max(float(confidence), 0.0), 1.0)
+    if confidence <= low:
+        return min_order
+    if confidence >= high:
+        return max_order
+    return min_order + (confidence - low) / (high - low) * (max_order - min_order)
+
+
 @dataclass
 class IndicatorSnapshot:
     """Structure stockant un ensemble d’indicateurs techniques et fondamentaux."""
@@ -336,13 +368,13 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
     sell_threshold = thresholds['sell']
 
     if rec == "ACHAT":
-        confidence = min((score - buy_threshold) / max(abs(buy_threshold), 1) + 0.5, 1.0)
+        confidence = signal_confidence(score - buy_threshold)
         if weak_fundamentals or toxic_fundamentals:
             confidence = min(confidence, 0.40)
             reasons.append("- Pénalité de confiance : Achat dégradé en profil spéculatif/technique. Les fondamentaux n'appuient pas la hausse des prix.")
 
     elif rec == "VENTE":
-        confidence = min((sell_threshold - score) / max(abs(sell_threshold), 1) + 0.5, 1.0)
+        confidence = signal_confidence(sell_threshold - score)
 
         # 1. CAS TOXIQUE : Fondamentaux désastreux (Pertes nettes ou bulle sur les actifs)
         if toxic_fundamentals:
@@ -364,7 +396,8 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
         confidence = min(abs(score - mid) / spread, 1.0)
 
     confidence = max(confidence, 0.0)
-    suggested_amount = round(confidence * 1000, 2)
+    # Un montant n'a de sens que pour un achat ; même règle que le backtest (cf. DEC-07)
+    suggested_amount = round(order_amount_for_confidence(confidence), 2) if rec == "ACHAT" else 0.0
 
     return {
         "score": score,
@@ -549,14 +582,17 @@ NOMS_ENTREPRISES = {
 
 # ----------------------- Main Routine ----------------------- #
 
+RECOMMENDATION_ORDER = {"ACHAT": 0, "NEUTRE": 1, "VENTE": 2}
+
 def format_recommendation_summary(company_name: str, recommendation: str,
                                   confidence: float, suggested_amount: float,
                                   price: Optional[float] = None) -> str:
     """Formate la ligne de recommandation avec prix et action suggérée."""
     price_text = f" | Prix utilisé: {price:.2f}€" if price is not None else ""
+    amount_text = f" | Montant suggéré: €{suggested_amount:.2f}" if suggested_amount > 0 else ""
     return (
-        f"{company_name}: {recommendation} | Confiance: {round(float(confidence), 2)} "
-        f"| Montant suggéré: €{suggested_amount:.2f}{price_text} | Action suggérée: {recommendation}"
+        f"{company_name}: {recommendation} | Confiance: {round(float(confidence), 2)}"
+        f"{amount_text}{price_text} | Action suggérée: {recommendation}"
     )
 
 def main():
@@ -595,7 +631,10 @@ def main():
         current_prices[ticker] = snap.close
         results.append((ticker, nom_entreprise, outcome, snap))
 
-    results_sorted = sorted(results, key=lambda x: x[2]["confidence"], reverse=True)
+    # Achats d'abord, puis neutres, puis ventes ; par confiance décroissante dans chaque groupe
+    results_sorted = sorted(
+        results, key=lambda x: (RECOMMENDATION_ORDER[x[2]["recommendation"]], -x[2]["confidence"])
+    )
 
     for (ticker, nom_entreprise, outcome, snap) in results_sorted:
         print(f"\n{format_recommendation_summary(nom_entreprise, outcome['recommendation'], outcome['confidence'], outcome['suggested_amount'], snap.close)}")
