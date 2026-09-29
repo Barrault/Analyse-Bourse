@@ -498,12 +498,14 @@ RECOMMENDATION_ORDER = {"ACHAT": 0, "NEUTRE": 1, "VENTE": 2}
 
 def format_recommendation_summary(company_name: str, recommendation: str,
                                   confidence: float, suggested_amount: float,
-                                  price: Optional[float] = None) -> str:
+                                  price: Optional[float] = None,
+                                  technical_score: Optional[float] = None) -> str:
     """Formate la ligne de recommandation avec prix et action suggérée."""
     price_text = f" | Prix utilisé: {price:.2f}€" if price is not None else ""
+    score_text = f" | Score technique: {technical_score:+.1f}" if technical_score is not None else ""
     amount_text = f" | Montant suggéré: €{suggested_amount:.2f}" if suggested_amount > 0 else ""
     return (
-        f"{company_name}: {recommendation} | Confiance: {float(confidence):.1%}"
+        f"{company_name}: {recommendation} | Confiance: {float(confidence):.1%}{score_text}"
         f"{amount_text}{price_text} | Action suggérée: {recommendation}"
     )
 
@@ -547,13 +549,15 @@ def main():
         current_prices[ticker] = snap.close
         results.append((ticker, nom_entreprise, outcome, snap))
 
-    # Achats d'abord, puis neutres, puis ventes ; par confiance décroissante dans chaque groupe
+    # Achats d'abord, puis neutres, puis ventes ; par confiance décroissante puis par score
+    # technique (même départage que le backtest : la confiance est par tranches)
     results_sorted = sorted(
-        results, key=lambda x: (RECOMMENDATION_ORDER[x[2]["recommendation"]], -x[2]["confidence"])
+        results, key=lambda x: (RECOMMENDATION_ORDER[x[2]["recommendation"]], -x[2]["confidence"],
+                                -x[2]["technical_score"] if x[2]["recommendation"] != "VENTE" else x[2]["technical_score"])
     )
 
     for (ticker, nom_entreprise, outcome, snap) in results_sorted:
-        print(f"\n{format_recommendation_summary(nom_entreprise, outcome['recommendation'], outcome['confidence'], outcome['suggested_amount'], snap.close)}")
+        print(f"\n{format_recommendation_summary(nom_entreprise, outcome['recommendation'], outcome['confidence'], outcome['suggested_amount'], snap.close, outcome['technical_score'])}")
         print("Principaux indicateurs:")
         for r in outcome['reasons']:
             print(f" {r}")

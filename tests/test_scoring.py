@@ -36,8 +36,9 @@ def test_recommendation_summary_includes_price_and_action():
         confidence=0.42,
         suggested_amount=16.67,
         price=152.34,
+        technical_score=5.5,
     )
-    for expected in ("Pernod Ricard", "ACHAT", "152.34", "16.67"):
+    for expected in ("Pernod Ricard", "ACHAT", "152.34", "16.67", "Score technique: +5.5"):
         assert expected in summary
 
 
