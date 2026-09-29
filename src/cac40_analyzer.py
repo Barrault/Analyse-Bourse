@@ -509,6 +509,25 @@ def format_recommendation_summary(company_name: str, recommendation: str,
         f"{amount_text}{price_text} | Action suggérée: {recommendation}"
     )
 
+def analyze_ticker(ticker: str, period: str = "2y", log=lambda _message: None):
+    """Analyse du jour d'un titre : (résultat de compute_score, snapshot), ou None si les
+    données manquent. Partagée par l'analyse complète et le plan de rebalance."""
+    df = yf.download(ticker, period=period, interval="1d", auto_adjust=True, progress=False)
+    if df is None or df.empty:
+        log(f"Aucune donnée pour {ticker}. Ignoré.")
+        return None
+    df = flatten_columns(df)
+    anomalies = split_anomalies(df, ticker)
+    if not anomalies.empty:
+        log(f"Saut de cours aberrant le {anomalies[-1].date()} : historique antérieur ignoré (DEC-17)")
+    df_ready = prepare_indicators_by_segment(df, anomalies)
+    if df_ready is None or df_ready.empty:
+        log(f"Pas assez d'historique pour {ticker}. Ignoré.")
+        return None
+    snap = build_snapshot(df_ready, fetch_fundamentals_safe(ticker))
+    return compute_score(snap), snap
+
+
 def main():
     """Lance l'analyse complète du CAC40 avec suivi console."""
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
@@ -516,38 +535,15 @@ def main():
 
     parser = argparse.ArgumentParser(description="Analyse du CAC40 et recommandation stricte")
     parser.add_argument('--period', type=str, default='5y')
-    parser.add_argument('--interval', type=str, default='1d')
     args = parser.parse_args()
 
-    cac40_tickers = list(NOMS_ENTREPRISES.keys())
     results = []
-    current_prices = {}
-
-    print(f"\nNOUVELLE VERSION SÉCURISÉE")
-    for ticker in cac40_tickers:
-        nom_entreprise = NOMS_ENTREPRISES.get(ticker, ticker)
+    for ticker, nom_entreprise in NOMS_ENTREPRISES.items():
         print(f"\nAnalyse de {nom_entreprise}...")
-        df = yf.download(ticker, period=args.period, interval=args.interval, auto_adjust=True, progress=False)
-        if df is None or df.empty:
-            print(f"Aucune donnée pour {ticker}. Ignoré.")
-            continue
-
-        df = flatten_columns(df)
-        anomalies = split_anomalies(df, ticker)
-        if not anomalies.empty:
-            print(f"Saut de cours aberrant le {anomalies[-1].date()} : historique antérieur ignoré (DEC-17)")
-        df_ready = prepare_indicators_by_segment(df, anomalies)
-
-        if df_ready is None or df_ready.empty:
-            print(f"Pas assez d'historique pour {ticker}. Ignoré.")
-            continue
-
-        fundamentals = fetch_fundamentals_safe(ticker)
-        snap = build_snapshot(df_ready, fundamentals)
-        outcome = compute_score(snap)
-
-        current_prices[ticker] = snap.close
-        results.append((ticker, nom_entreprise, outcome, snap))
+        analysis = analyze_ticker(ticker, args.period, log=print)
+        if analysis is not None:
+            outcome, snap = analysis
+            results.append((ticker, nom_entreprise, outcome, snap))
 
     # Achats d'abord, puis neutres, puis ventes ; par confiance décroissante puis par score
     # technique (même départage que le backtest : la confiance est par tranches)
