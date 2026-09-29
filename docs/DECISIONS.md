@@ -11,7 +11,9 @@ de la branche `fix/audit-corrections`.
 - **Contexte** : ~30 constats touchant surtout 3 fichiers (`cac40_analyzer.py`, `backtest.py`, `config.yaml`).
 - **Décision** : une seule branche `fix/audit-corrections` partant de `master`, un commit
   atomique par constat ou groupe de constats liés (format *Conventional Commits*,
-  identifiant d'audit dans le message), puis une Pull Request vers `master`.
+  identifiant d'audit dans le message), puis fusion en *fast-forward* dans `master`.
+  Projet mené seul : pas de Pull Request, la branche sert à isoler le travail en cours et
+  est supprimée après fusion.
 - **Écarté** : une branche par constat. Les corrections modifient les mêmes fonctions
   (`compute_score`, `execute_rebalance`) : des branches parallèles produiraient des
   conflits en chaîne sans bénéfice de revue, puisqu'un seul relecteur intervient.
