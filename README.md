@@ -1,149 +1,110 @@
-# 📈 CAC40 Analyzer - Stock Analysis & Backtesting System
+# Analyse boursière : actions françaises
 
-A **strict** French stock analyzer combining technical and fundamental analysis to generate BUY/SELL/HOLD signals for monthly rebalancing trading.
+Outil personnel d'aide à la décision pour un investissement mensuel sur actions
+françaises. Il combine :
 
-## Quick Start
+- **une analyse du jour** : score technique et fondamental, recommandation
+  ACHAT / NEUTRE / VENTE, confiance et montant suggéré, avec les motifs en clair ;
+- **un backtest** : rejoue la stratégie sur l'historique avec les frais Bourse Direct,
+  des actions entières et un stop-loss, puis la compare à un ETF CAC 40.
 
-### 1. Install dependencies
+> ⚠️ Outil personnel, pas un conseil en investissement. Voir les
+> [limites du backtest](#limites-connues).
+
+## Installation
+
+Python 3.10 ou plus récent.
+
 ```bash
-pip install pandas yfinance numpy ta
+python -m venv .venv
+.venv\Scripts\activate            # Windows  (Linux/macOS : source .venv/bin/activate)
+pip install -r requirements.txt   # ou requirements-dev.txt pour lancer les tests
 ```
 
-### 2. Run analysis (current date)
+## Utilisation
+
+Les commandes se lancent depuis la racine du projet.
+
 ```bash
-python cac40_analyzer.py --period 5y
+# Analyse du jour de tout l'univers (~96 valeurs)
+python src/cac40_analyzer.py --period 5y
+
+# Backtest complet (paramètres dans config/config.yaml)
+python src/run_full_backtest.py
 ```
 
-### 3. Run backtest (3 months - fast test)
+Le backtest écrit son journal dans `logs_results/backtest.log` et ses résultats (métriques
+de la stratégie et du benchmark, PnL par tranche de confiance) dans
+`results/backtest_results.json`. Ces deux dossiers sont ignorés par git.
+
+## Fonctionnement
+
+### Score
+
+| Famille | Signaux (poids dans `scoring.*`) |
+|---|---|
+| Tendance | Cours > SMA200, SMA50 > SMA200, SMA20 > SMA50 |
+| Momentum | MACD > 0, histogramme MACD > 0 |
+| Oscillateurs | RSI (zone neutre, survente, surachat), bandes de Bollinger |
+| Volume / volatilité | Volume > moyenne 20 j, ATR / cours sous un seuil |
+| Fondamentaux | PE par tranches, P/B qualifié par le ROE implicite, croisement PE × P/B, dividende, pertes (BPA < 0) |
+
+- Recommandation : `score ≥ thresholds.buy` → ACHAT, `score ≤ thresholds.sell` → VENTE,
+  sinon NEUTRE.
+- Confiance : 0,5 au seuil, puis 1,0 à `confidence_scale` points au-delà, avec des
+  plafonds métier (fondamentaux faibles, titre déjà bradé, etc.).
+- Montant suggéré (ACHAT seulement) : interpolation linéaire entre `min_order_amount` et
+  `max_order_amount` selon la confiance. C'est la même règle que dans le backtest.
+
+### Backtest
+
+- Rebalance au **premier jour de cotation** de chaque période (`trading.rebalance.frequency`).
+- Signal calculé sur les séances **antérieures**, ordres exécutés au **cours d'ouverture**.
+- Ventes : signal VENTE ou **stop-loss** (clôture de la veille ≥ `stop_loss_pct` sous le
+  prix d'achat).
+- Achats : **actions entières**, frais Bourse Direct par paliers (`fees.structure`),
+  réserve de trésorerie `margin_buffer`.
+- Valorisation à chaque clôture. Rendement, volatilité, Sharpe (taux sans risque nul) et
+  drawdown maximal, comparés à l'ETF **Amundi CAC 40 (`CAC.PA`)**, dividendes inclus.
+- **Fondamentaux désactivés par défaut** (`backtest.use_fundamentals: false`) : Yahoo ne
+  fournit que les valeurs actuelles, et s'en servir pour noter 2024 serait un biais
+  d'anticipation.
+
+### Limites connues
+
+- **Biais du survivant** : l'univers correspond à la composition actuelle, et les
+  sociétés disparues depuis 2024 manquent.
+- **Fondamentaux non historiques** : le backtest par défaut évalue donc la partie technique
+  de la stratégie seulement.
+- Stop-loss vérifié une fois par période, pas en continu.
+- Poids et seuils **non calibrés** : ce sont des choix d'expert, à ajuster en comparant
+  au benchmark.
+
+## Configuration
+
+Tout se règle dans [config/config.yaml](config/config.yaml), sans toucher au code. Toutes
+les clés sont obligatoires : une clé manquante ou mal orthographiée lève une erreur qui la
+nomme. Des conseils de calibrage figurent en fin de fichier.
+
+## Tests
+
 ```bash
-python quick_backtest.py
+pip install -r requirements-dev.txt
+pytest              # tests hors réseau, lancés aussi par la CI GitHub Actions
+pytest -m network   # test de bout en bout contre Yahoo Finance
 ```
 
-### 4. Run full backtest (2 years - 30-45 min)
-```bash
-python run_full_backtest.py > backtest_log.txt 2>&1 &
-```
-
-## 📊 System Overview
-
-### Technical Indicators
-- **Trends**: SMA20, SMA50, SMA200 (short/mid/long term)
-- **Momentum**: MACD, MACD Histogram
-- **Oscillators**: RSI14 (overbought/oversold)
-- **Volatility**: Bollinger Bands, ATR14
-- **Volume**: SMA20 of volume
-
-### Fundamental Metrics
-- **Valuation**: Trailing PE, Price-to-Book
-- **Returns**: Implied ROE (approximation)
-- **Income**: Dividend Yield
-
-### Scoring & Recommendations
-- **ACHAT (BUY)**: Score >= +3 (strict threshold)
-- **VENTE (SELL)**: Score <= -3 (strict threshold)
-- **NEUTRE (HOLD)**: Everything else
-- Each signal includes confidence percentage
-
-## 💰 Trading Parameters
-
-| Parameter | Value |
-|-----------|-------|
-| Capital | 5,000€ |
-| Rebalance Frequency | Monthly (1st trading day) |
-| Min Order Size | 500€ (optimal fee: 0.19%) |
-| Max Order Size | 1,000€ |
-| Broker | Bourse Direct |
-| Fee Structure | See `backtest.py` |
-
-## 📁 File Structure
+## Structure
 
 ```
-├── cac40_analyzer.py          # Main scoring engine
-├── backtest.py                # Backtester class
-├── quick_backtest.py          # 3-month test
-├── run_full_backtest.py       # 2-year full test
-├── test_backtest.py           # Component tests
-├── BACKTEST_RESULTS.md        # Detailed results & roadmap
-└── README.md                  # This file
+config/config.yaml        Paramètres (indicateurs, poids, trading, frais, backtest)
+src/cac40_analyzer.py     Indicateurs, scoring, analyse du jour
+src/backtest.py           Moteur de backtest, métriques, benchmark
+src/run_full_backtest.py  Lancement du backtest avec journal et export JSON
+src/config_loader.py      Lecture stricte de la configuration
+tests/                    Suite pytest (données synthétiques, sans réseau)
+docs/AUDIT.md             Audit du 2026-09-29 (constats identifiés A1…D4)
+docs/DECISIONS.md         Journal des décisions : contexte, choix, alternatives
+docs/ROADMAP.md           Pistes d'amélioration
+CHANGELOG.md              Historique des versions
 ```
-
-## 🌳 Git Branches
-
-### Completed ✅
-- `feature/simple-backtest` - Backtesting with fee simulation
-
-### In Progress 🔨
-None yet - waiting for full backtest results
-
-### Planned 📋
-- `feature/data-persistence` - Cache downloaded data
-- `feature/config-yaml` - Externalize parameters
-- `feature/calibration` - Optimize scoring weights
-- `feature/risk-management` - Position sizing, stops
-- `feature/portfolio-tracking` - Real-time monitoring
-- `feature/reporting` - Dashboard & analytics
-
-## 🧪 Latest Test Results
-
-**3-month backtest (Jul-Sep 2024):**
-- PnL: **+354.97€ (+7.10%)**
-- Trades: 6 buys, 0 sells
-- Fees: 10.58€
-- Avg position return: **+8.14%** (1 loser: -1.97%)
-
-See [BACKTEST_RESULTS.md](BACKTEST_RESULTS.md) for full details.
-
-## ⚠️ Known Limitations
-
-1. **No optimization yet** - Scoring weights chosen arbitrarily
-2. **Large datasets** - Backtesting 93 stocks takes time
-3. **No caching** - Re-downloads data each run
-4. **Basic fee modeling** - Assumes fixed execution price
-5. **Dividend analysis weak** - Doesn't detect yield traps
-
-## 🎯 Next Priorities
-
-1. **✓ Build working backtest** (DONE)
-2. **Run full 2024-2026 backtest** (IN PROGRESS)
-3. **Optimize scoring weights** using backtest results
-4. **Add risk management** (position sizing, stops)
-5. **Cache data** for faster iterations
-
-## 💡 Key Insights
-
-### What's Working
-- ✅ Combined technical + fundamental approach
-- ✅ Strict thresholds reduce false signals
-- ✅ Monthly rebalancing matches trader bandwidth
-- ✅ Real fee simulation improves accuracy
-
-### What Needs Work
-- ❌ Scoring calibration (arbitrary weights)
-- ❌ Dividend safety checks
-- ❌ Risk management (no position sizing)
-- ❌ Performance on full dataset unknown
-
-## 🔗 References
-
-### Scoring Logic
-See `compute_score()` in `cac40_analyzer.py` for detailed weight allocation
-
-### Fee Structure
-Bourse Direct fees (compte-titres):
-- ≤ 500€: 0.99€ fixed
-- 500-1000€: 1.90€ fixed
-- 1000-2000€: 2.90€ fixed
-- 2000-4400€: 3.80€ fixed
-- > 4400€: 0.09% of amount
-
-## 📞 Support
-
-For questions or improvements, check:
-1. [BACKTEST_RESULTS.md](BACKTEST_RESULTS.md) - Detailed analysis
-2. Commit messages - Development history
-3. Branch PRs - Feature discussions
-
----
-
-**Status**: Feature/simple-backtest complete. Awaiting full 2024-2026 results.
-**Last Updated**: 2026-01-30

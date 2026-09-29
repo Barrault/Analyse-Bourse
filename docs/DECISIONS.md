@@ -323,9 +323,12 @@ de la branche `fix/audit-corrections`.
     la stratégie au benchmark, rf = 0 suffit ; c'est indiqué dans le libellé.
   - Un benchmark équipondéré sur l'univers : plus fidèle au style de la stratégie, mais
     non investissable tel quel. Il pourra être ajouté plus tard.
-- **Conséquences** : avec 20 000 € de capital et des ordres de 1 000 € maximum, une large
-  part du portefeuille reste en cash. Le benchmark rend ce frein visible : c'est un
-  paramètre de dimensionnement à revoir, pas un bug.
+- **Conséquences** : la comparaison au benchmark devient la mesure de référence de tout
+  futur calibrage. *Correction* : une première version de ce paragraphe annonçait un
+  capital largement laissé en cash. C'était une extrapolation depuis un test synthétique à
+  3 titres. Sur l'univers réel, le capital est investi dès le 6e mois (environ 200 € de
+  cash, 35 à 40 lignes) et 404 signaux d'achat sont rejetés faute de trésorerie (run du
+  2026-09-29).
 
 ---
 
@@ -363,3 +366,24 @@ de la branche `fix/audit-corrections`.
   n'est pas une dépendance fiable en CI.
 - **Écarté** : une matrice multi-versions et un linter. Pour un projet personnel à un seul
   interpréteur, cela ajouterait du bruit sans bénéfice.
+
+---
+
+## DEC-16 — Documentation (D1, D4)
+
+- **Contexte** : le README décrivait un état révolu (fichier `quick_backtest.py`
+  inexistant, dépendance `ta` inutile, seuils ±3, capital de 5 000 €) ; quatre fichiers
+  (`DEVELOPMENT.md`, `FEATURE_CONFIG.md`, `INTEGRATION_COMPLETE.md`,
+  `BACKTEST_RESULTS.md`) étaient des comptes rendus d'étape datés, qui se contredisaient
+  entre eux et contredisaient le code.
+- **Décision** : un README décrivant l'état **actuel** (installation, usage, méthode,
+  limites, tests) ; les pistes encore valables des anciennes roadmaps, réécrites avec les
+  constats du run réel, dans `docs/ROADMAP.md` ; un `CHANGELOG.md` ; suppression des
+  quatre fichiers, qui restent consultables dans l'historique git.
+- **Écarté** : mettre ces fichiers à jour un par un. Leur contenu relève de l'historique
+  (ce qui a été fait, quand), ce que git et le CHANGELOG couvrent mieux. Les maintenir
+  reproduirait la même dérive.
+- **Principe retenu** : la documentation décrit ce qui **est** (README), ce qui a été
+  **décidé et pourquoi** (DECISIONS), ce qui **pourrait venir** (ROADMAP). Les résultats
+  chiffrés, qui changent à chaque run, vivent dans les sorties du backtest et le CHANGELOG,
+  pas dans le README.
