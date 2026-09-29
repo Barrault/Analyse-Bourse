@@ -42,3 +42,6 @@ results.txt
 .pytest_cache/
 logs_results/
 results/
+
+# Journal de rebalance : positions et montants réels (données personnelles)
+journal/
