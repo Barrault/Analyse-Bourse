@@ -8,11 +8,20 @@ estimée.
    varier les seuils `buy`/`sell`, `stop_loss_pct` et le dimensionnement, puis comparer au
    benchmark. Il faut séparer une période d'ajustement et une période de validation, pour
    ne pas sur-ajuster sur 2024-2026.
-2. **Confiance anti-prédictive** : sur le run du 2026-09-29, plus la confiance d'achat
-   est haute, moins le trade gagne (54 % de trades gagnants entre 0,4 et 0,6 contre 22 %
-   au-dessus de 0,8, avec un PnL moyen négatif). Les scores techniques extrêmes
-   ressemblent à des sommets de court terme (surachat). Piste : revoir le poids de la
-   tendance court terme et de Bollinger, ou plafonner la confiance.
+2. **Confiance sans pouvoir prédictif** (étude du 2026-09-29, backtest technique seul).
+   Le tableau « PnL par confiance » du backtest suggère un fort effet inverse (54 %
+   de trades gagnants entre 0,4 et 0,6, contre 22 % au-dessus de 0,8). Mais il ne compte
+   que les trades clôturés, avec ~28 trades par tranche. Mesuré sur les **1 283 signaux
+   ACHAT** (exécutés ou non), à partir de l'ouverture du jour du signal :
+   - à 3 mois, les tranches ne se distinguent pas (+3,6 % / +3,8 % / +2,6 %, ~53 % de
+     gagnants partout ; écart haute − basse −1,0 pt, IC 95 % [−4,6 ; +2,3]) ;
+   - à 1 mois, léger retard de la tranche haute (−2,3 pts, IC 95 % [−4,3 ; −0,4]),
+     cohérent avec un peu plus de surachat au signal (RSI 62 contre 57, 14 % des cas
+     au-dessus de la bande de Bollinger haute contre 6 %) ;
+   - la corrélation de rang entre confiance et rendement est quasi nulle (−0,02 à 3 mois).
+   Conséquence : dimensionner les ordres selon la confiance (100 € → 1 000 €) ne repose sur
+   rien de mesurable. À tester : des montants égaux, et une confiance recalibrée
+   (poids de Bollinger « au-dessus de la bande haute », seuil de surachat du RSI).
 3. **Allocation du capital** : le capital est investi dès le 6e mois et 404 signaux
    d'achat sont ensuite rejetés faute de cash. Envisager une rotation (vendre la ligne la
    plus faible pour financer un signal plus fort) ou un nombre maximal de lignes.
