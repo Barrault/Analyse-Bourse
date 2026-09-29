@@ -74,3 +74,20 @@ de la branche `fix/audit-corrections`.
   cela ajoute une dépendance et un schéma à maintenir en double du YAML. L'échec au premier
   accès couvre le besoin réel, à savoir détecter une clé mal orthographiée.
 - **Conséquences** : une config incomplète échoue tôt, avec un message qui nomme la clé.
+
+---
+
+## DEC-04 — Chemins de sortie du backtest complet (A5)
+
+- **Contexte** : `results/` était résolu par rapport au répertoire courant et jamais créé.
+  Le run plantait donc **à la fin**, après 30 à 45 minutes, sauf s'il était lancé depuis
+  un dossier qui contenait déjà `results/`. De plus, `sys.stdout` n'était pas restauré
+  après la fermeture du fichier de log.
+- **Décision** : ancrer les chemins sur la racine du projet (`Path(__file__).parent.parent`),
+  créer le dossier avant l'écriture (`mkdir(parents=True, exist_ok=True)`), restaurer
+  stdout/stderr dans le `finally`. Nom de fichier générique (`backtest_results.json`,
+  `backtest.log`) : les dates vivent dans la config, pas dans les noms de fichiers.
+  `logs_results/` et `results/` sont ignorés par git.
+- **Écarté** : remplacer `DualLogger` par le module `logging`. Ici la sortie console **est**
+  le rapport destiné à l'utilisateur, pas un journal technique. `logging` ajouterait des
+  préfixes et une configuration sans rien apporter.

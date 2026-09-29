@@ -167,7 +167,7 @@ output:
   debug_tickers: ["AC.PA"]  # Print debug info for these tickers
   save_results: true
   results_dir: "results"
-  results_filename: "backtest_results_2024_2026.json"
+  results_filename: "backtest_results.json"
 
 # ============================== CALIBRATION HINTS ==============================
 # Use these notes when tweaking parameters:

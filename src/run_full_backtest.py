@@ -1,15 +1,17 @@
 """
 Full backtest 2024-2026 with proper result saving
-Run: python run_full_backtest.py
-Logs are automatically written to logs_results/backtest_2024_2026.log with proper UTF-8 encoding
+Run (depuis n'importe quel répertoire) : python src/run_full_backtest.py
+Le log est écrit dans logs_results/backtest.log et les résultats JSON dans
+<output.results_dir>/<output.results_filename>, chemins relatifs à la racine du projet.
 """
 import sys
-import io
 import json
 from pathlib import Path
 from datetime import datetime
 from backtest import Backtester
 from config_loader import config
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 class DualLogger:
     """Writes output to both console and log file with UTF-8 encoding"""
@@ -33,12 +35,13 @@ class DualLogger:
 
 if __name__ == "__main__":
     # Set up UTF-8 logging
-    log_dir = Path(__file__).parent.parent / "logs_results"
+    log_dir = PROJECT_ROOT / "logs_results"
     log_dir.mkdir(exist_ok=True)
-    log_file = log_dir / "backtest_2024_2026.log"
+    log_file = log_dir / "backtest.log"
 
     # Redirect stdout to our dual logger
     logger = DualLogger(str(log_file))
+    original_stderr = sys.stderr
     sys.stdout = logger
     sys.stderr = logger
 
@@ -72,9 +75,10 @@ if __name__ == "__main__":
         print(f"\nEnd time: {datetime.now().isoformat()}")
 
         # Sauvegarder les résultats en JSON
-        output_params = config.get_section('output')
-        results_dir = output_params['results_dir']
-        results_filename = output_params['results_filename']
+        # Chemin ancré sur la racine du projet et dossier créé à l'avance : un run de
+        # 30 minutes ne doit pas échouer à l'écriture finale (constat A5).
+        results_path = PROJECT_ROOT / config.get('output.results_dir') / config.get('output.results_filename')
+        results_path.parent.mkdir(parents=True, exist_ok=True)
 
         results = {
             "period": f"{start_date} to {end_date}",
@@ -98,4 +102,5 @@ if __name__ == "__main__":
         print(f"📄 Log file saved to {log_file}")
 
     finally:
+        sys.stdout, sys.stderr = logger.console, original_stderr
         logger.close()
