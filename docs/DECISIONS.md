@@ -389,3 +389,38 @@ de la branche `fix/audit-corrections`.
   **décidé et pourquoi** (DECISIONS), ce qui **pourrait venir** (ROADMAP). Les résultats
   chiffrés, qui changent à chaque run, vivent dans les sorties du backtest et le CHANGELOG,
   pas dans le README.
+
+---
+
+## DEC-17 — Contrôle qualité des cours : sauts aberrants
+
+- **Contexte** : l'étude des composantes du score (2026-09-29) a mis au jour des cours
+  Yahoo corrompus. Atos passe de 48,5 € à 4 187 € le 2024-11-12 (regroupement d'actions
+  non ajusté), puis revient à 26 € le 2024-12-06. Vivendi chute de 78 % le 2024-12-09, jour
+  de sa scission en quatre sociétés, non ajustée : l'actionnaire n'a rien perdu, il a reçu
+  des titres. Ces sauts faussent les moyennes mobiles, fabriquent des gains ou des pertes
+  fictifs, et dominent toute moyenne statistique.
+- **Détection** : une clôture multipliée ou divisée par au moins `max_daily_factor = 2` en
+  une séance. Sur 10 ans et 96 titres, 4 titres sont concernés : Atos et Vivendi
+  (aberrants), Eutelsat (+120 % le 2025-03-05) et Worldline (−59 % le 2023-10-25), deux vrais
+  mouvements de marché vérifiés et listés dans `data_quality.verified_real_moves`.
+- **Décision** :
+  - Les indicateurs sont calculés **par segment** entre deux sauts : aucune moyenne mobile
+    ne mélange deux échelles de prix. Un segment de moins de 200 séances ne produit pas de
+    signal.
+  - Une position détenue le jour d'un saut est soldée au **dernier cours valide** (clôture
+    de la veille), avec le motif `OST` (opération sur titre).
+  - Pas de signal quand un saut sépare la séance du signal de celle de l'exécution.
+  - L'analyse du jour n'utilise que le segment en cours.
+- **Écarté** :
+  - *Tronquer l'historique avant le dernier saut* : c'était ma première implémentation. Un
+    test de non-anticipation l'a fait échouer, et à raison. Tronquer selon le **dernier**
+    saut, c'est savoir en 2023 qu'Atos aura un problème de données fin 2024, et donc
+    l'exclure d'avance. Comme Atos s'est effondrée en 2024, cela aurait flatté le backtest.
+    Le découpage par segment n'utilise que le passé.
+  - *Corriger les cours* (réappliquer le ratio du regroupement) : il faudrait connaître
+    chaque opération sur titre et son ratio, donc maintenir des données à la main.
+  - *Exclure les titres concernés* : même biais que la troncature.
+- **Conséquences** : Atos et Vivendi ne sont plus analysables pendant les 200 séances qui
+  suivent leur saut. Tout nouveau saut détecté est signalé au chargement pour vérification
+  manuelle : s'il est réel, il faut l'ajouter à la liste blanche.

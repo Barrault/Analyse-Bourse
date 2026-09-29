@@ -30,7 +30,7 @@ def test_signal_is_unchanged_when_same_day_and_future_data_change(prices, no_fun
     df = prices(days=400)
     date = df.index[300]
     tampered = df.copy()
-    tampered.loc[date:, ["High", "Low", "Close"]] *= 3  # clôture du jour et futur falsifiés
+    tampered.loc[date:, ["High", "Low", "Close"]] *= 1.8  # clôture du jour et futur falsifiés (< facteur 2, cf. DEC-17)
 
     original, altered = Backtester(), Backtester()
     original.add_price_data("TEST.PA", df)

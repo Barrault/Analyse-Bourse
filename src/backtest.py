@@ -14,7 +14,7 @@ import yfinance as yf
 
 from cac40_analyzer import (
     compute_score, fetch_fundamentals_safe, flatten_columns, order_amount_for_confidence,
-    build_snapshot, prepare_indicators, NOMS_ENTREPRISES
+    build_snapshot, prepare_indicators_by_segment, split_anomalies, NOMS_ENTREPRISES
 )
 from config_loader import config
 
@@ -132,6 +132,7 @@ class Backtester:
         # Indicateurs calculés une fois par ticker sur tout l'historique : SMA/EMA/rolling
         # sont causaux, donc la ligne D ne dépend que des données <= D (cf. DEC-08).
         self.indicators: Dict[str, pd.DataFrame] = {}
+        self.anomalies: Dict[str, pd.DatetimeIndex] = {}
         self._fundamentals_cache: Dict[str, Dict[str, Optional[float]]] = {}
 
     def load_data(self, tickers: List[str], period: Optional[str] = None):
@@ -173,8 +174,13 @@ class Backtester:
     def add_price_data(self, ticker: str, df: pd.DataFrame):
         """Enregistre l'historique de prix d'un ticker et pré-calcule ses indicateurs."""
         df = flatten_columns(df)
+        anomalies = split_anomalies(df, ticker)
+        if not anomalies.empty:
+            print(f"  ⚠ {ticker}: saut(s) de cours aberrant(s) le {', '.join(str(d.date()) for d in anomalies)}"
+                  f" → indicateurs recalculés par segment (DEC-17)")
         self.all_data[ticker] = df
-        indicators = prepare_indicators(df)
+        self.anomalies[ticker] = anomalies
+        indicators = prepare_indicators_by_segment(df, anomalies)
         if indicators is not None and not indicators.empty:
             self.indicators[ticker] = indicators
 
@@ -209,6 +215,11 @@ class Backtester:
 
         # Vérifier que tous les indicateurs essentiels sont valides
         if snap.close is None or snap.sma200 is None:
+            return None
+
+        # Signal et exécution doivent être sur la même échelle de prix (cf. DEC-17)
+        anomalies = self.anomalies.get(ticker, pd.DatetimeIndex([]))
+        if ((anomalies > snap.date) & (anomalies <= date)).any():
             return None
 
         outcome = compute_score(snap)
@@ -500,6 +511,7 @@ class Backtester:
         sessions = self.trading_calendar(rebalance_dates[0], end_date)
         equity = {}
         for session in sessions:
+            self._exit_on_price_anomaly(session)
             if session in rebalance_set:
                 i = rebalance_dates.index(session) + 1
                 print(f"\n[{i:2d}/{len(rebalance_dates)}] {session.strftime('%Y-%m-%d')}", end=" → ")
@@ -517,6 +529,19 @@ class Backtester:
         start = pd.Series({sessions[0] - pd.Timedelta(days=1): float(self.initial_cash)})
         self.equity_curve = pd.concat([start, pd.Series(equity)])
         self.benchmark_curve = self._benchmark_curve(sessions)
+
+    def _exit_on_price_anomaly(self, session: pd.Timestamp):
+        """Solde au dernier cours valide une position dont le cours saute de façon aberrante.
+
+        Le cours publié après le saut n'est pas sur la même échelle (opération sur titre mal
+        ajustée) : le valoriser créerait un gain ou une perte fictifs. On sort donc la ligne
+        à la clôture de la veille, qui est le dernier prix comparable (cf. DEC-17).
+        """
+        for ticker, position in list(self.positions.items()):
+            if session in self.anomalies.get(ticker, ()):
+                closes = self.all_data[ticker]['Close']
+                last_valid = float(closes[closes.index < session].iloc[-1])
+                self._execute_sell(position, last_valid, session, "OST")
 
     def portfolio_value(self) -> float:
         """Cash + positions valorisées au dernier prix connu (après mark_to_market)."""

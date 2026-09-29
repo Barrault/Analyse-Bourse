@@ -67,6 +67,40 @@ def atr(high: pd.Series, low: pd.Series, close: pd.Series, window: int = 14) -> 
     tr = true_range(high, low, close)
     return tr.ewm(alpha=1/window, adjust=False).mean()
 
+# ----------------------- Data Quality ----------------------- #
+
+def price_anomalies(df: pd.DataFrame, max_daily_factor: float) -> pd.DatetimeIndex:
+    """Séances où la clôture est multipliée ou divisée par au moins `max_daily_factor`."""
+    log_moves = np.log(df['Close'] / df['Close'].shift(1)).abs()
+    return df.index[log_moves >= np.log(max_daily_factor)]
+
+
+def split_anomalies(df: pd.DataFrame, ticker: str) -> pd.DatetimeIndex:
+    """Sauts de cours aberrants d'un titre, hors mouvements réels vérifiés (cf. DEC-17).
+
+    Un facteur >= 2 en une séance trahit presque toujours une opération sur titre mal
+    ajustée par Yahoo (regroupement d'actions, scission) : les cours d'avant et d'après
+    ne sont pas sur la même échelle.
+    """
+    if ticker in config.get('data_quality.verified_real_moves'):
+        return pd.DatetimeIndex([])
+    return price_anomalies(df, config.get('data_quality.max_daily_factor'))
+
+
+def prepare_indicators_by_segment(df: pd.DataFrame, anomalies: pd.DatetimeIndex) -> Optional[pd.DataFrame]:
+    """Indicateurs calculés séparément sur chaque segment compris entre deux sauts aberrants.
+
+    À une date donnée, les indicateurs ne dépendent que du segment en cours : aucune
+    moyenne mobile ne mélange deux échelles de prix, et un saut FUTUR n'a aucun effet
+    sur le passé (pas d'anticipation). Un segment trop court pour la SMA200 ne produit
+    aucune ligne : le titre n'est simplement pas analysable pendant ce temps.
+    """
+    bounds = [df.index[0], *anomalies, df.index[-1] + pd.Timedelta(days=1)]
+    segments = [prepare_indicators(df[(df.index >= lo) & (df.index < hi)]) for lo, hi in zip(bounds, bounds[1:])]
+    segments = [seg for seg in segments if seg is not None and not seg.empty]
+    return pd.concat(segments) if segments else None
+
+
 # ----------------------- Indicator Preparation ----------------------- #
 
 PRICE_COLUMNS = ('Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume')
@@ -622,7 +656,11 @@ def main():
             print(f"Aucune donnée pour {ticker}. Ignoré.")
             continue
 
-        df_ready = prepare_indicators(df)
+        df = flatten_columns(df)
+        anomalies = split_anomalies(df, ticker)
+        if not anomalies.empty:
+            print(f"Saut de cours aberrant le {anomalies[-1].date()} : historique antérieur ignoré (DEC-17)")
+        df_ready = prepare_indicators_by_segment(df, anomalies)
 
         if df_ready is None or df_ready.empty:
             print(f"Pas assez d'historique pour {ticker}. Ignoré.")

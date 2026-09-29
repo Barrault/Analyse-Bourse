@@ -182,6 +182,16 @@ backtest:
   data:
     period: "5y"           # Historique téléchargé (>= 200 séances avant start_date pour la SMA200)
 
+# ============================== DATA QUALITY ==============================
+data_quality:
+  # Une clôture multipliée ou divisée par ce facteur en une séance est traitée comme une
+  # opération sur titre mal ajustée : seul l'historique postérieur est conservé (DEC-17).
+  max_daily_factor: 2.0
+  # Mouvements de ce type vérifiés comme RÉELS (à ne pas filtrer) :
+  verified_real_moves:
+    - "ETL.PA"   # Eutelsat : +120 % le 2025-03-05 (spéculation sur la défense européenne)
+    - "WLN.PA"   # Worldline : -59 % le 2023-10-25 (avertissement sur résultats)
+
 # ============================== OUTPUT ==============================
 output:
   results_dir: "results"                    # Relatif à la racine du projet
