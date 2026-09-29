@@ -285,3 +285,37 @@ de la branche `fix/audit-corrections`.
     supplémentaires, à évaluer une fois le backtest de base fiable (YAGNI).
 - **Conséquences** : le contrôle réutilise la clôture de la veille et l'ouverture du jour,
   comme les autres ordres. Il ne crée donc pas de nouvelle anticipation.
+
+---
+
+## DEC-13 — Benchmark et métriques de risque (B3)
+
+- **Contexte** : le backtest n'affichait qu'un rendement total, sans point de comparaison,
+  ce qui empêchait de savoir si la stratégie apporte quelque chose. La valorisation
+  n'était faite qu'aux dates de rebalance (mensuelles) : un drawdown intra-mois restait
+  invisible, et le résultat final était figé à la dernière rebalance au lieu de la
+  dernière cotation.
+- **Décision** :
+  - **Benchmark = ETF Amundi CAC 40 (`CAC.PA`)** en achat-conservation : tout le capital à
+    l'ouverture de la première séance, parts entières et frais inclus, comme la stratégie.
+  - **Pourquoi pas `^FCHI`** : c'est un indice de prix, sans dividendes, alors que la
+    stratégie est valorisée en prix ajustés des dividendes. Sur 2024-01 → 2026-09,
+    `^FCHI` fait +7,3 % et `CAC.PA` ajusté +16,8 % (mesuré le 2026-09-29). Utiliser l'indice
+    aurait flatté la stratégie de ~9,5 points. L'ETF est en outre réellement investissable,
+    frais de gestion compris.
+  - Boucle de simulation **journalière** : ordres les jours de rebalance, valorisation à
+    chaque clôture (`equity_curve`), photo finale à la dernière séance disponible.
+  - `performance_metrics()` : rendement total, rendement annualisé, volatilité annualisée
+    (√252), Sharpe avec taux sans risque nul, drawdown maximal. Ces métriques sont affichées
+    pour la stratégie et le benchmark, et exportées en JSON.
+  - `simulate()` est séparée de `run_backtest()` (téléchargement) : la boucle complète est
+    testée hors réseau.
+- **Écarté** :
+  - Un taux sans risque réel (€STR) dans le Sharpe : il faudrait une source de données
+    supplémentaire, et le même taux s'appliquerait aux deux colonnes. Pour **comparer**
+    la stratégie au benchmark, rf = 0 suffit ; c'est indiqué dans le libellé.
+  - Un benchmark équipondéré sur l'univers : plus fidèle au style de la stratégie, mais
+    non investissable tel quel. Il pourra être ajouté plus tard.
+- **Conséquences** : avec 20 000 € de capital et des ordres de 1 000 € maximum, une large
+  part du portefeuille reste en cash. Le benchmark rend ce frein visible : c'est un
+  paramètre de dimensionnement à revoir, pas un bug.

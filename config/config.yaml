@@ -172,6 +172,11 @@ backtest:
   # un biais d'anticipation (une date de 2024 notée avec des résultats de 2026).
   use_fundamentals: false
 
+  # Benchmark d'achat-conservation. ETF Amundi CAC 40 plutôt que l'indice ^FCHI : l'indice
+  # est un indice de PRIX (dividendes exclus) alors que la stratégie est valorisée en prix
+  # ajustés des dividendes ; comparer les deux avantagerait la stratégie de ~3 %/an.
+  benchmark: "CAC.PA"
+
   # Data Download (journalier, prix ajustés des dividendes et splits)
   data:
     period: "5y"           # Historique téléchargé (>= 200 séances avant start_date pour la SMA200)

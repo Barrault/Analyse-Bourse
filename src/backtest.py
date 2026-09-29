@@ -41,6 +41,29 @@ def calculate_fees(amount: float) -> float:
 # Fréquences de rebalance (config trading.rebalance.frequency) -> périodes pandas
 REBALANCE_FREQUENCIES = {"week": "W", "month": "M", "quarter": "Q"}
 
+TRADING_DAYS_PER_YEAR = 252
+
+def performance_metrics(equity: pd.Series) -> Dict[str, float]:
+    """Indicateurs de performance d'une courbe de valeur journalière (cf. DEC-13).
+
+    Sharpe calculé avec un taux sans risque nul : il sert à COMPARER la stratégie au
+    benchmark sur la même période, pas à produire une valeur absolue.
+    """
+    equity = equity.dropna()
+    daily_returns = equity.pct_change().dropna()
+    years = max((equity.index[-1] - equity.index[0]).days / 365.25, 1 / 365.25)
+    total_return = equity.iloc[-1] / equity.iloc[0] - 1
+    volatility = daily_returns.std() * np.sqrt(TRADING_DAYS_PER_YEAR) if len(daily_returns) > 1 else 0.0
+    annual_mean = daily_returns.mean() * TRADING_DAYS_PER_YEAR if len(daily_returns) else 0.0
+    drawdown = equity / equity.cummax() - 1
+    return {
+        "total_return_pct": total_return * 100,
+        "cagr_pct": ((1 + total_return) ** (1 / years) - 1) * 100,
+        "volatility_pct": volatility * 100,
+        "sharpe": annual_mean / volatility if volatility > 0 else 0.0,
+        "max_drawdown_pct": drawdown.min() * 100,
+    }
+
 # ----------------------- Portfolio & Trade Tracking ----------------------- #
 
 @dataclass
@@ -100,6 +123,11 @@ class Backtester:
         self.positions: Dict[str, Position] = {}
         self.trades: List[Trade] = []
         self.portfolio_history: List[PortfolioSnapshot] = []
+        # Valeur du portefeuille à la clôture de CHAQUE séance (drawdown, volatilité)
+        self.equity_curve: pd.Series = pd.Series(dtype=float)
+        self.benchmark_ticker: str = config.get('backtest.benchmark')
+        self.benchmark_data: Optional[pd.DataFrame] = None
+        self.benchmark_curve: pd.Series = pd.Series(dtype=float)
         self.all_data: Dict[str, pd.DataFrame] = {}
         # Indicateurs calculés une fois par ticker sur tout l'historique : SMA/EMA/rolling
         # sont causaux, donc la ligne D ne dépend que des données <= D (cf. DEC-08).
@@ -132,6 +160,15 @@ class Backtester:
                 print(f"  ✗ Erreur {ticker}: {e}")
 
         print(f"✓ {len(self.all_data)} actions chargées")
+
+        try:
+            bench = yf.download(self.benchmark_ticker, period=period, interval="1d",
+                                auto_adjust=True, progress=False)
+            if bench is not None and not bench.empty:
+                self.benchmark_data = flatten_columns(bench)
+                print(f"✓ Benchmark {self.benchmark_ticker} chargé")
+        except Exception as e:
+            print(f"  ✗ Benchmark {self.benchmark_ticker} indisponible: {e}")
 
     def add_price_data(self, ticker: str, df: pd.DataFrame):
         """Enregistre l'historique de prix d'un ticker et pré-calcule ses indicateurs."""
@@ -189,6 +226,13 @@ class Backtester:
             "snapshot": snap
         }
 
+    def trading_calendar(self, start_date, end_date) -> pd.DatetimeIndex:
+        """Séances cotées (au moins un titre de l'univers) entre deux dates incluses."""
+        if not self.all_data:
+            return pd.DatetimeIndex([])
+        calendar = pd.DatetimeIndex(sorted(set().union(*(df.index for df in self.all_data.values()))))
+        return calendar[(calendar >= pd.Timestamp(start_date)) & (calendar <= pd.Timestamp(end_date))]
+
     def rebalance_dates(self, start_date: str, end_date: str, frequency: str) -> List[pd.Timestamp]:
         """Premier jour de cotation de chaque période, d'après le calendrier réel des données.
 
@@ -198,11 +242,9 @@ class Backtester:
         if frequency not in REBALANCE_FREQUENCIES:
             raise ValueError(f"trading.rebalance.frequency inconnue : {frequency!r} "
                              f"(attendu : {', '.join(REBALANCE_FREQUENCIES)})")
-        if not self.all_data:
+        calendar = self.trading_calendar(start_date, end_date)
+        if calendar.empty:
             return []
-
-        calendar = pd.DatetimeIndex(sorted(set().union(*(df.index for df in self.all_data.values()))))
-        calendar = calendar[(calendar >= pd.Timestamp(start_date)) & (calendar <= pd.Timestamp(end_date))]
         periods = calendar.to_period(REBALANCE_FREQUENCIES[frequency])
         return list(pd.Series(calendar, index=calendar).groupby(periods).first())
 
@@ -382,11 +424,9 @@ class Backtester:
         """Met à jour les prix des positions ouvertes."""
         for ticker, position in self.positions.items():
             if ticker in self.all_data:
-                df = self.all_data[ticker]
-                df_up_to = df[df.index <= date]
-                if not df_up_to.empty:
-                    # use numpy value to avoid pandas single-element Series float deprecation
-                    position.current_price = float(df_up_to['Close'].values[-1])
+                close = self.all_data[ticker]['Close'].asof(date)  # dernière clôture <= date
+                if pd.notna(close):
+                    position.current_price = float(close)
                     cost_basis = position.quantity * position.buy_price + position.buy_fees
                     position.pnl = (position.current_price * position.quantity) - cost_basis
                     position.pnl_pct = (position.pnl / cost_basis * 100) if cost_basis > 0 else 0
@@ -410,7 +450,7 @@ class Backtester:
             for p in self.positions.values()
         ]
 
-        gross_value = self.cash + sum(p.current_price * p.quantity for p in self.positions.values())
+        gross_value = self.portfolio_value()
         total_value = gross_value
         returns_pct = ((total_value - self.initial_cash) / self.initial_cash * 100)
 
@@ -445,22 +485,59 @@ class Backtester:
         print(f"📌 Fondamentaux: {'activés (biais d anticipation !)' if self.use_fundamentals else 'désactivés'}")
 
         self.load_data(tickers)
+        self.simulate(start_date, end_date, tickers, frequency)
 
-        # Obtenir les dates de rebalance
+    def simulate(self, start_date: str, end_date: str, tickers: List[str], frequency: str = "month"):
+        """Rejoue la stratégie sur les données déjà chargées (sans accès réseau)."""
         rebalance_dates = self.rebalance_dates(start_date, end_date, frequency)
         if not rebalance_dates:
             print("Aucune date de rebalance : pas de données sur la période demandée.")
             return
         print(f"\n📅 {len(rebalance_dates)} rebalances, du {rebalance_dates[0].date()} au {rebalance_dates[-1].date()}")
 
-        # Boucle principale
-        for i, rebalance_date in enumerate(rebalance_dates, 1):
-            pct = (i / len(rebalance_dates)) * 100
-            print(f"\n[{i:2d}/{len(rebalance_dates)}] {pct:5.1f}% {rebalance_date.strftime('%Y-%m-%d')}", end=" → ")
+        # Boucle journalière : ordres les jours de rebalance, valorisation chaque soir
+        rebalance_set = set(rebalance_dates)
+        sessions = self.trading_calendar(rebalance_dates[0], end_date)
+        equity = {}
+        for session in sessions:
+            if session in rebalance_set:
+                i = rebalance_dates.index(session) + 1
+                print(f"\n[{i:2d}/{len(rebalance_dates)}] {session.strftime('%Y-%m-%d')}", end=" → ")
+                self.execute_rebalance(session, tickers)
+                self.snapshot_portfolio(session)
+            else:
+                self.mark_to_market(session)
+            equity[session] = self.portfolio_value()
 
-            self.execute_rebalance(rebalance_date, tickers)
-            self.snapshot_portfolio(rebalance_date)
-            print(f"✓")
+        # Photo finale à la dernière séance (et non à la dernière rebalance)
+        if sessions[-1] not in rebalance_set:
+            self.snapshot_portfolio(sessions[-1])
+
+        # Point de départ : capital initial la veille de la première séance
+        start = pd.Series({sessions[0] - pd.Timedelta(days=1): float(self.initial_cash)})
+        self.equity_curve = pd.concat([start, pd.Series(equity)])
+        self.benchmark_curve = self._benchmark_curve(sessions)
+
+    def portfolio_value(self) -> float:
+        """Cash + positions valorisées au dernier prix connu (après mark_to_market)."""
+        return self.cash + sum(p.current_price * p.quantity for p in self.positions.values())
+
+    def _benchmark_curve(self, sessions: pd.DatetimeIndex) -> pd.Series:
+        """Achat-conservation du benchmark : tout le capital investi à l'ouverture de la
+        première séance, en parts entières et frais inclus, comme la stratégie."""
+        if self.benchmark_data is None or sessions.empty:
+            return pd.Series(dtype=float)
+        bench = self.benchmark_data
+        first = sessions[0]
+        if first not in bench.index:
+            return pd.Series(dtype=float)
+        open_price = float(bench.loc[first, 'Open'])
+        units = math.floor((self.initial_cash - calculate_fees(self.initial_cash)) / open_price)
+        leftover = self.initial_cash - units * open_price - calculate_fees(units * open_price)
+        closes = bench['Close'].reindex(sessions, method='ffill')
+        curve = leftover + units * closes
+        start = pd.Series({first - pd.Timedelta(days=1): float(self.initial_cash)})
+        return pd.concat([start, curve])
 
     def _confidence_bucket(self, confidence: Optional[float]) -> str:
         """Regroupe une confiance d'achat dans un bucket de 20% pour l'analyse."""
@@ -556,6 +633,17 @@ class Backtester:
         print(f"  PnL absolu:          {last.total_value - self.initial_cash:>10.2f}€")
         print(f"  PnL %:               {last.returns_pct:>10.2f}%")
 
+        if len(self.equity_curve) > 1:
+            print(f"\n📉 PERFORMANCE & RISQUE (du {self.equity_curve.index[1].date()} au {self.equity_curve.index[-1].date()}):")
+            columns = [("Stratégie", performance_metrics(self.equity_curve))]
+            if len(self.benchmark_curve) > 1:
+                columns.append((self.benchmark_ticker, performance_metrics(self.benchmark_curve)))
+            print("  " + " " * 22 + "".join(f"{name:>14}" for name, _ in columns))
+            for key, label in [("total_return_pct", "Rendement total %"), ("cagr_pct", "Rendement annualisé %"),
+                               ("volatility_pct", "Volatilité annuelle %"), ("sharpe", "Sharpe (rf=0)"),
+                               ("max_drawdown_pct", "Drawdown max %")]:
+                print(f"  {label:<22}" + "".join(f"{metrics[key]:>14.2f}" for _, metrics in columns))
+
         print(f"\n📈 TRADES:")
         print(f"  Total trades:        {total_trades:>10}")
         print(f"  Achats:              {len(buy_trades):>10}")
@@ -563,7 +651,8 @@ class Backtester:
         print(f"  Frais totaux:        {total_fees:>10.2f}€")
 
         if wins + losses > 0:
-            print(f"\n✅ WIN RATE (Ventes):")
+            stops = sum(1 for t in round_trips if t["exit_reason"] == "STOP-LOSS")
+            print(f"\n✅ WIN RATE (allers-retours clôturés, nets de frais, dont {stops} stop-loss):")
             print(f"  Ventes gagnantes:    {wins:>10}")
             print(f"  Ventes perdantes:    {losses:>10}")
             print(f"  Win rate:            {win_rate:>10.2f}%")

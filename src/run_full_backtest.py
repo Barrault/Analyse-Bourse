@@ -8,7 +8,7 @@ import sys
 import json
 from pathlib import Path
 from datetime import datetime
-from backtest import Backtester
+from backtest import Backtester, performance_metrics
 from config_loader import config
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -93,6 +93,10 @@ if __name__ == "__main__":
             "pnl_percent": backtester.portfolio_history[-1].returns_pct if backtester.portfolio_history else 0,
             "open_positions": len(backtester.portfolio_history[-1].positions) if backtester.portfolio_history else 0,
             "confidence_pnl_summary": backtester.get_confidence_pnl_summary(),
+            "use_fundamentals": backtester.use_fundamentals,
+            "strategy_metrics": performance_metrics(backtester.equity_curve) if len(backtester.equity_curve) > 1 else None,
+            "benchmark": backtester.benchmark_ticker,
+            "benchmark_metrics": performance_metrics(backtester.benchmark_curve) if len(backtester.benchmark_curve) > 1 else None,
         }
 
         with open(f"{results_dir}/{results_filename}", "w", encoding='utf-8') as f:

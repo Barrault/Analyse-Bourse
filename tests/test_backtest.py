@@ -2,7 +2,7 @@
 import pandas as pd
 import pytest
 
-from backtest import Backtester
+from backtest import Backtester, performance_metrics
 from cac40_analyzer import build_snapshot, compute_score, prepare_indicators
 
 
@@ -130,3 +130,29 @@ def test_stop_loss_sells_a_neutral_position_after_a_15pct_drop(backtester, last_
     if sold:
         assert backtester.trades[-1].recommendation == "STOP-LOSS"
         assert backtester.trades[-1].price == 83.0  # exécuté à l'ouverture
+
+
+# ----------------------- Simulation complète & métriques ----------------------- #
+
+def test_performance_metrics_on_a_known_curve():
+    index = pd.bdate_range("2024-01-01", periods=4)
+    metrics = performance_metrics(pd.Series([100.0, 120.0, 90.0, 110.0], index=index))
+    assert metrics["total_return_pct"] == pytest.approx(10.0)
+    assert metrics["max_drawdown_pct"] == pytest.approx(-25.0)  # 120 -> 90
+
+
+def test_simulation_values_the_portfolio_every_session_until_the_last_quote(prices, backtester):
+    for seed, ticker in enumerate(["A.PA", "B.PA", "C.PA"]):
+        backtester.add_price_data(ticker, prices(days=500, seed=seed, drift=0.001))
+    backtester.benchmark_data = prices(days=500, seed=99)
+    last_quote = backtester.all_data["A.PA"].index[-1]
+
+    backtester.simulate("2023-12-01", "2030-12-31", ["A.PA", "B.PA", "C.PA"])
+
+    sessions = backtester.trading_calendar("2023-12-01", "2030-12-31")
+    assert backtester.equity_curve.index[-1] == last_quote
+    assert len(backtester.equity_curve) == len(sessions) + 1  # + capital initial la veille
+    assert backtester.portfolio_history[-1].date == last_quote
+    assert backtester.equity_curve.iloc[-1] == pytest.approx(backtester.portfolio_history[-1].total_value)
+    assert len(backtester.benchmark_curve) == len(backtester.equity_curve)
+    assert all(trade.date <= last_quote for trade in backtester.trades)
