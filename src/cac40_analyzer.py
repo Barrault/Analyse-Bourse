@@ -3,14 +3,13 @@ CAC40 Stock Analyzer - Version stricte
 """
 # -*- coding: utf-8 -*-
 import argparse
-from datetime import date
+import sys
+from dataclasses import dataclass
+from typing import Optional, Dict, Any, List
+
 import numpy as np
 import pandas as pd
 import yfinance as yf
-from dataclasses import dataclass
-from typing import Optional, Dict, Any, List
-import sys
-import io
 
 # Import configuration
 from config_loader import config
@@ -70,26 +69,26 @@ def atr(high: pd.Series, low: pd.Series, close: pd.Series, window: int = 14) -> 
 
 # ----------------------- Indicator Preparation ----------------------- #
 
+PRICE_COLUMNS = ('Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume')
+
+def flatten_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Aplatit les colonnes MultiIndex renvoyées par yf.download (niveau 'Price', 'Ticker')."""
+    df = df.copy()
+    if df.columns.nlevels > 1:
+        level = next(
+            (lvl for lvl in range(df.columns.nlevels)
+             if any(v in PRICE_COLUMNS for v in df.columns.get_level_values(lvl))),
+            -1,
+        )
+        df.columns = df.columns.get_level_values(level)
+    return df
+
 def prepare_indicators(df: pd.DataFrame) -> Optional[pd.DataFrame]:
     """Prépare les indicateurs techniques pour un DataFrame."""
     if df is None or df.empty:
         return None
 
-    df = df.copy()
-
-    if isinstance(df.columns, pd.MultiIndex) or getattr(df.columns, 'nlevels', 1) > 1:
-        required_cols = ['Close', 'High', 'Low', 'Volume', 'Adj Close', 'Open']
-        chosen = None
-        for lvl in range(df.columns.nlevels):
-            vals = df.columns.get_level_values(lvl)
-            if any(v in vals for v in required_cols):
-                chosen = vals
-                break
-
-        if chosen is not None:
-            df.columns = chosen
-        else:
-            df.columns = df.columns.get_level_values(-1)
+    df = flatten_columns(df)
 
     required_cols = ['Close', 'High', 'Low', 'Volume']
     for col in required_cols:
@@ -583,8 +582,8 @@ def format_recommendation_summary(company_name: str, recommendation: str,
 
 def main():
     """Lance l'analyse complète du CAC40 avec suivi console."""
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
     parser = argparse.ArgumentParser(description="Analyse du CAC40 et recommandation stricte")
     parser.add_argument('--period', type=str, default='5y')

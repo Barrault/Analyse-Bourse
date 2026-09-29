@@ -3,17 +3,16 @@ Backtester pour CAC40 Analyzer
 Simule les trades réels avec frais Bourse Direct 2024-2026
 """
 # -*- coding: utf-8 -*-
+import sys
+from dataclasses import dataclass
+from datetime import timedelta
+from typing import Dict, List, Optional
+
 import pandas as pd
 import yfinance as yf
-from datetime import datetime, timedelta
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
-import numpy as np
-import sys
-import io
+
 from cac40_analyzer import (
-    sma, ema, rsi, macd, bollinger, atr, true_range,
-    IndicatorSnapshot, compute_score, fetch_fundamentals_safe,
+    compute_score, fetch_fundamentals_safe, flatten_columns,
     build_snapshot, prepare_indicators, NOMS_ENTREPRISES
 )
 from config_loader import config
@@ -108,24 +107,7 @@ class Backtester:
                     progress=False
                 )
                 if df is not None and not df.empty:
-                    # Si les colonnes sont en MultiIndex (yfinance peut le faire),
-                    # essayer d'extraire le niveau contenant les noms réels
-                    if isinstance(df.columns, pd.MultiIndex) or getattr(df.columns, 'nlevels', 1) > 1:
-                        required_cols = ['Close', 'High', 'Low', 'Volume', 'Adj Close', 'Open']
-                        # Chercher un niveau contenant des noms connus (Close, High, ...)
-                        chosen = None
-                        for lvl in range(df.columns.nlevels):
-                            vals = df.columns.get_level_values(lvl)
-                            if any(v in vals for v in required_cols):
-                                chosen = vals
-                                break
-
-                        if chosen is not None:
-                            df.columns = chosen
-                        else:
-                            # Fallback: prendre le dernier niveau
-                            df.columns = df.columns.get_level_values(-1)
-
+                    df = flatten_columns(df)
                     self.all_data[ticker] = df
                     if i % 10 == 0:
                         print(f"  ✓ {i}/{len(tickers)} actions téléchargées")
@@ -148,22 +130,11 @@ class Backtester:
         if df_up_to_date.empty:
             return None
 
-        # Debug: afficher ce qui se passe
-        if ticker == 'AC.PA' and str(date.date()) == '2024-07-01':
-            df_valid = df_up_to_date.dropna()
-            print(f"DEBUG {ticker} {date.date()}: total rows={len(df_up_to_date)}, valid rows after dropna={len(df_valid)}")
-            if not df_valid.empty:
-                last_row = df_valid.iloc[-1]
-                print(f"  Last valid: {last_row.name}, Close={last_row['Close']}, SMA200={last_row['SMA200']}")
-
         fundamentals = fetch_fundamentals_safe(ticker)
         snap = build_snapshot(df_up_to_date, fundamentals)
 
         # Vérifier que tous les indicateurs essentiels sont valides
         if snap.close is None or snap.sma200 is None:
-            # Debug: afficher pourquoi c'est rejeté (seulement pour les premiers cas)
-            if ticker == 'AC.PA':
-                print(f"DEBUG {ticker}: close={snap.close}, sma200={snap.sma200}, rows={len(df_up_to_date)}")
             return None
 
         outcome = compute_score(snap)
@@ -594,9 +565,8 @@ class Backtester:
                 print(f"  {pos.company_name:20s}: {pos.quantity:>6.2f} @ {pos.current_price:>7.2f}€ | PnL: {pos.pnl:>8.2f}€ ({pos.pnl_pct:>6.2f}%)")
 
 if __name__ == "__main__":
-    # Forcer UTF-8 - réenvelopper stdout/stderr sans condition
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
     # Charger depuis la configuration
     trading_params = config.get_section('trading')

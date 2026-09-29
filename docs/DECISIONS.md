@@ -91,3 +91,16 @@ de la branche `fix/audit-corrections`.
 - **Écarté** : remplacer `DualLogger` par le module `logging`. Ici la sortie console **est**
   le rapport destiné à l'utilisateur, pas un journal technique. `logging` ajouterait des
   préfixes et une configuration sans rien apporter.
+
+---
+
+## DEC-05 — Nettoyage : debug, duplication, encodage (C4, C5)
+
+- **Décision** :
+  - Suppression du code de debug codé en dur (`AC.PA`, 2024-07-01). Un diagnostic ciblé
+    se fait au débogueur ou par un test, pas par un `print` conditionnel qui reste dans le code.
+  - L'aplatissement du MultiIndex yfinance, présent en double, devient
+    `flatten_columns()` dans `cac40_analyzer.py` et est testé.
+  - Imports inutilisés retirés. `sys.stdout.reconfigure(encoding='utf-8')` remplace le
+    ré-enveloppement `io.TextIOWrapper`. C'est l'API prévue pour cela depuis Python 3.7 :
+    elle garde le même objet stream et n'en crée pas un second sur le même buffer.
