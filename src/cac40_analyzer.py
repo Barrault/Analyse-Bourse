@@ -419,9 +419,8 @@ def fetch_fundamentals_safe(ticker: str) -> Dict[str, Optional[float]]:
         info = yf.Ticker(ticker).info
         pe = to_float(info.get("trailingPE"))
         pb = to_float(info.get("priceToBook"))
+        # Déjà exprimé en pourcentage depuis yfinance 0.2.54 (4.5 = 4,5 %)
         dy = to_float(info.get("dividendYield"))
-        if dy is not None and dy < 1:
-            dy *= 100
         return {"trailingPE": pe, "priceToBook": pb, "dividendYield": dy}
     except Exception:
         return {"trailingPE": None, "priceToBook": None, "dividendYield": None}

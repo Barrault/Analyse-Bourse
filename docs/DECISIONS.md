@@ -39,3 +39,18 @@ de la branche `fix/audit-corrections`.
   Cela casserait l'usage documenté `python src/cac40_analyzer.py` et imposerait
   `python -m`, pour un gain nul sur un projet personnel sans distribution.
 - **Conséquences** : `pip install -r requirements-dev.txt && pytest` suffit depuis la racine.
+
+---
+
+## DEC-02 — Rendement du dividende (A1)
+
+- **Contexte** : le code multipliait `dividendYield` par 100 s'il était < 1, héritage de
+  l'ancien format yfinance (fraction). Depuis yfinance 0.2.54 la valeur est déjà en %.
+  Tout titre versant moins de 1 % était donc crédité d'un rendement de 50 à 99 %.
+- **Décision** : lire la valeur telle quelle et imposer `yfinance>=0.2.54` dans
+  `requirements.txt`, ce qui garantit le format.
+- **Écarté** : une heuristique qui devine le format selon l'ordre de grandeur. Elle
+  est indécidable : 0,5 peut valoir 0,5 % (nouveau format) ou 50 % (ancien format).
+  Fixer la version de la dépendance lève l'ambiguïté à la source.
+- **Conséquences** : les valeurs à rendement < 1 % (STMicro, Dassault Systèmes…) ne
+  touchent plus le bonus « dividende élevé ». Test : `tests/test_fundamentals.py`.
