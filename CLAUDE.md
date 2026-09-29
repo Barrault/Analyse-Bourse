@@ -14,6 +14,7 @@ pytest -m network                        # test contre Yahoo, manuel
 python src/cac40_analyzer.py --period 2y # analyse du jour
 python src/run_full_backtest.py          # backtest ~30 s → logs_results/backtest.log, results/*.json
 python src/calibrate.py {features|calibrate|evaluate|dividend}
+python src/rebalance.py --cash 1500    # plan d'ordres depuis l'export Bourse Direct (skill /rebalance)
 ```
 
 Windows : préfixer par `PYTHONIOENCODING=utf-8` quand la sortie est redirigée (emojis).
@@ -24,6 +25,8 @@ Windows : préfixer par `PYTHONIOENCODING=utf-8` quand la sortie est redirigée 
 - `src/backtest.py` : `Backtester` (`add_price_data` → `simulate`), métriques, benchmark
 - `src/calibrate.py` : sélection des composantes et table de confiance (apprentissage/test)
 - `src/config_loader.py` : `config.get("a.b.c")`, **lève `KeyError`** si la clé manque
+- `src/rebalance.py` : export de positions (Strict OOXML, lu sans openpyxl) → plan d'ordres → `journal/` (non versionné)
+- `.claude/skills/rebalance/` : routine mensuelle ; `.claude/hooks/guard_git.py` : garde-fous git
 - `config/config.yaml` : tous les paramètres ; les poids sont annotés de leur effet mesuré
 - `tests/conftest.py` : fixtures `snapshot`, `prices` (OHLCV synthétique), `no_fundamentals`
 
@@ -54,14 +57,16 @@ Windows : préfixer par `PYTHONIOENCODING=utf-8` quand la sortie est redirigée 
 
 - Branche courte (`feat/…`, `fix/…`) puis **merge fast-forward dans `master`** et push ;
   **pas de Pull Request**. Supprimer la branche après fusion.
-- Commits atomiques, *Conventional Commits* en anglais, chaque commit laisse `pytest` au vert.
-- **Indexer les fichiers un par un**, jamais `git add -A` : l'utilisateur modifie parfois des
-  fichiers en parallèle (ex. `.gitignore`).
+- Commits atomiques, *Conventional Commits* en anglais.
+- Hook `PreToolUse` (`.claude/settings.json`) : **pytest lancé avant chaque `git commit`**
+  (bloqué s'il échoue) et **`git add -A` / `--all` / `.` bloqués**. Indexer fichier par fichier :
+  l'utilisateur modifie parfois des fichiers en parallèle.
 
 ## Documentation à tenir à jour (dans le même commit que le code)
 
 - `docs/DECISIONS.md` : une entrée `DEC-xx` par choix non trivial (contexte → décision →
-  alternatives écartées → conséquences). Dernière : DEC-24.
+  alternatives écartées → conséquences). Dernière : DEC-25.
 - `CHANGELOG.md` (version aussi dans `pyproject.toml`), `README.md` (état actuel seulement),
   `docs/ROADMAP.md` (pistes), `docs/AUDIT.md` (constats A1…D4, historique).
 - Chiffres de performance : toujours avec la période et la comparaison à l'ETF, jamais seuls.
+- Ne jamais versionner de données personnelles (positions, montants, n° de compte) : `journal/` est ignoré.

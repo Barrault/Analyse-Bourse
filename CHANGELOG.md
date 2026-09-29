@@ -4,6 +4,18 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 identifiants (A1, S2…) renvoient à [docs/AUDIT.md](docs/AUDIT.md) et les choix sont
 justifiés dans [docs/DECISIONS.md](docs/DECISIONS.md).
 
+## [1.4.0] — 2026-09-29 — Routine mensuelle outillée
+
+### Ajouté
+- `src/rebalance.py` et skill Claude Code `/rebalance` : depuis l'export de positions
+  Bourse Direct, plan d'ordres conforme à la stratégie testée (ventes sur signal ou
+  stop-loss, achats par priorité, actions entières, frais, réserve), écrit dans `journal/`.
+- Hooks Claude Code : tests lancés avant chaque commit (blocage en cas d'échec), `git add`
+  global bloqué.
+
+### Modifié
+- `analyze_ticker()` extrait de l'analyse du jour, partagé avec le plan de rebalance.
+
 ## [1.3.0] — 2026-09-29 — Décision sur ce qui est mesuré
 
 ### Modifié

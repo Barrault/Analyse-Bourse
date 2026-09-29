@@ -689,3 +689,38 @@ l'écart avec l'ETF en conditions réelles avant d'engager davantage de capital.
     North Atlantic Energies (en perte).
 - **Seul le filtre « perte » n'est pas vérifié par les données** : il faudra le juger à
   l'usage, en suivi réel.
+
+---
+
+## DEC-25 — Routine mensuelle outillée : script de rebalance, skill et hooks
+
+- **Contexte** : le suivi en conditions réelles est la priorité n°1 de la roadmap. Chaque
+  mois, il faut appliquer à la main des règles précises (vente sur signal ou stop-loss,
+  priorité des achats, actions entières, frais, réserve de trésorerie). C'est source
+  d'erreurs, et rien ne gardait la trace des décisions.
+- **Décision** :
+  - `src/rebalance.py` lit l'export de positions Bourse Direct, retrouve les tickers par
+    ISIN (recherche Yahoo, préférence pour la cotation `.PA`), relance l'analyse du jour et
+    applique **les mêmes règles que le backtest**. Le plan est écrit dans `journal/`.
+  - Skill `/rebalance` : il **orchestre et présente**, sans calculer. Les chiffres viennent
+    du script testé : plus fiable, et moins coûteux qu'un calcul fait par le modèle.
+  - Hooks `PreToolUse` sur Bash : tests avant commit, `git add` global bloqué. Ce sont des
+    garde-fous déterministes, sans coût de contexte, qui ne dépendent pas de la mémoire de
+    l'assistant.
+- **Détails et justifications** :
+  - L'export est au format *Strict OOXML*, que `openpyxl` ne lit pas. Il est lu directement
+    (zip + XML, bibliothèque standard) : **aucune nouvelle dépendance**.
+  - L'export le plus récent est choisi d'après la **date de son nom**, pas la date de
+    modification du fichier, qui change en cas de copie.
+  - L'export ne contient pas les espèces : elles sont passées en paramètre (`--cash`),
+    jamais supposées.
+  - Stop-loss comparé au **PRU du courtier** (frais d'achat inclus), donc légèrement plus
+    prudent que le backtest, qui utilise le prix d'exécution.
+  - Un titre hors univers (l'ETF levier) ou sans signal est listé « décision manuelle ».
+  - Un ACHAT sur un titre **déjà détenu** n'est pas racheté, comme dans le backtest.
+- **Confidentialité** : le numéro de compte n'apparaît ni dans le code ni dans le skill
+  (motif générique `…EUR-JJ_MM_AAAA HH_MM_SS.xlsx`), et `journal/` est ignoré par git :
+  positions et montants restent locaux.
+- **Écarté** :
+  - Parser l'export dans le skill, en langage naturel : non testable et non reproductible.
+  - Un MCP ou une API courtier : Bourse Direct n'en propose pas.
