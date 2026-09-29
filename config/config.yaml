@@ -140,6 +140,10 @@ trading:
     max_confidence_for_max_spend: 1.0  # Confiance >= ceci -> max_order_amount
     margin_buffer: 200                 # Trésorerie toujours conservée
 
+  # Exit rules (en plus du signal VENTE), contrôlées à chaque rebalance
+  exit_rules:
+    stop_loss_pct: 15   # Vente si la clôture de la veille est >= 15 % sous le prix d'achat (null = désactivé)
+
   # Rebalancing : 1er jour de cotation de chaque période, ordres au cours d'ouverture
   rebalance:
     frequency: "month"  # Options: "week", "month", "quarter"

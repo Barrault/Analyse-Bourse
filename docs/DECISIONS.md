@@ -261,3 +261,27 @@ de la branche `fix/audit-corrections`.
   motif de sortie (`exit_reason`), utilisé par le stop-loss (DEC-12).
 - **Justification** : le PnL net est ce qui arrive réellement sur le compte. Un gain brut
   mangé par les frais n'en est pas un.
+
+---
+
+## DEC-12 — Stop-loss (B4)
+
+- **Contexte** : une position ne sortait que sur un signal VENTE (score ≤ −2). Une ligne en
+  baisse mais notée NEUTRE pouvait être conservée indéfiniment. Le dernier backtest affiche
+  un win rate de 32 % sur les ventes, et la performance venait des positions restées ouvertes.
+- **Décision** : `trading.exit_rules.stop_loss_pct: 15`. À chaque rebalance, une position
+  dont la clôture de la veille est ≥ 15 % sous son prix d'achat est vendue à l'ouverture,
+  avec le motif `STOP-LOSS` tracé dans le trade et dans `closed_trades()`. `null` désactive
+  la règle.
+- **Justification du seuil** : la volatilité mensuelle d'une grande capitalisation
+  française est d'environ 6 à 8 %. 15 % correspond à peu près à 2 écarts-types : la règle ne
+  se déclenche pas sur le bruit normal d'un mois, mais coupe les décrochages durables.
+  C'est une valeur de départ **à calibrer**, pas un optimum.
+- **Écarté** :
+  - Un stop intrajournalier (ordre stop permanent) : il faudrait simuler chaque séance
+    entre deux rebalances, ce qui ne correspond pas à l'usage réel (revue mensuelle
+    manuelle) et complexifie le moteur.
+  - Trailing stop et durée maximale de détention : ce sont des règles de gestion
+    supplémentaires, à évaluer une fois le backtest de base fiable (YAGNI).
+- **Conséquences** : le contrôle réutilise la clôture de la veille et l'ouverture du jour,
+  comme les autres ordres. Il ne crée donc pas de nouvelle anticipation.

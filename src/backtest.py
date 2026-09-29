@@ -182,6 +182,7 @@ class Backtester:
             "date": date,
             "price": open_price,
             "signal_date": snap.date,
+            "signal_close": snap.close,
             "recommendation": outcome["recommendation"],
             "confidence": outcome["confidence"],
             "score": outcome["score"],
@@ -243,7 +244,9 @@ class Backtester:
             if ticker in analyses:
                 analysis = analyses[ticker]
                 if analysis["recommendation"] == "VENTE":
-                    sells.append((ticker, position, analysis))
+                    sells.append((ticker, position, analysis, "VENTE"))
+                elif self._stop_loss_hit(position, analysis["signal_close"]):
+                    sells.append((ticker, position, analysis, "STOP-LOSS"))
 
         # 3. Chercher les bons achats
         for ticker, analysis in analyses.items():
@@ -251,25 +254,36 @@ class Backtester:
                 buys.append((ticker, analysis))
 
         print(f"\n📉 VENTES proposées: {len(sells)}")
-        for ticker, pos, analysis in sells:
-            print(f"  - {analysis['company_name']}: Prix={analysis['price']:.2f}€ | Action suggérée: {analysis['recommendation']} | Quantité={pos.quantity}")
+        for ticker, pos, analysis, reason in sells:
+            print(f"  - {analysis['company_name']}: Prix={analysis['price']:.2f}€ | Motif: {reason} | Quantité={pos.quantity}")
 
         print(f"📈 ACHATS proposés: {len(buys)}")
         for ticker, analysis in buys:
             print(f"  + {analysis['company_name']}: Prix={analysis['price']:.2f}€ | Action suggérée: {analysis['recommendation']} | Confiance={analysis['confidence']:.2%}")
 
         # 4. Exécuter les ventes d'abord
-        for ticker, position, analysis in sells:
-            self._execute_sell(position, analysis["price"], rebalance_date)
+        for ticker, position, analysis, reason in sells:
+            self._execute_sell(position, analysis["price"], rebalance_date, reason)
 
         # 5. Exécuter les achats (meilleure confiance en premier)
         buys_sorted = sorted(buys, key=lambda x: x[1]["confidence"], reverse=True)
         for ticker, analysis in buys_sorted:
             self._execute_buy(ticker, analysis, rebalance_date)
 
+    def _stop_loss_hit(self, position: Position, last_close: float) -> bool:
+        """Vrai si la dernière clôture connue est sous le prix d'achat de plus de stop_loss_pct.
+
+        Contrôlé à chaque rebalance (pas en intrajournalier), sur la clôture de la veille,
+        et exécuté à l'ouverture comme les autres ordres (cf. DEC-12).
+        """
+        stop_loss_pct = config.get('trading.exit_rules.stop_loss_pct')
+        if stop_loss_pct is None:
+            return False
+        return last_close <= position.buy_price * (1 - stop_loss_pct / 100)
+
     def _execute_sell(self, position: Position, current_price: float,
-                     date: pd.Timestamp):
-        """Exécute une vente."""
+                      date: pd.Timestamp, reason: str = "VENTE"):
+        """Exécute une vente (motif : signal VENTE ou STOP-LOSS)."""
         amount = position.quantity * current_price
         fees = calculate_fees(amount)
         net_proceeds = amount - fees
@@ -284,7 +298,7 @@ class Backtester:
             amount=amount,
             fees=fees,
             net_cost=net_proceeds,
-            recommendation="VENTE",
+            recommendation=reason,
             confidence=0.0,
             entry_confidence=position.entry_confidence
         )
@@ -297,7 +311,7 @@ class Backtester:
         pnl = net_proceeds - cost_basis
         pnl_pct = (pnl / cost_basis * 100) if cost_basis > 0 else 0
 
-        print(f"  ✓ VENTE {position.company_name}: {position.quantity} @ {current_price:.2f}€")
+        print(f"  ✓ {reason} {position.company_name}: {position.quantity} @ {current_price:.2f}€")
         print(f"    PnL: {pnl:.2f}€ ({pnl_pct:.2f}%) | Frais: {fees:.2f}€")
 
         del self.positions[position.ticker]

@@ -109,3 +109,24 @@ def test_skips_stocks_whose_single_share_exceeds_the_budget(backtester):
     backtester._execute_buy("RMS.PA", buy_signal(2100.0), pd.Timestamp("2024-01-02"))
     assert backtester.trades == []
     assert backtester.cash == backtester.initial_cash
+
+
+# ----------------------- Règles de sortie ----------------------- #
+
+def neutral_signal(open_price, last_close):
+    return {"ticker": "X", "company_name": "X", "date": None, "price": open_price,
+            "signal_date": None, "signal_close": last_close,
+            "recommendation": "NEUTRE", "confidence": 0.1, "score": 0.0}
+
+
+@pytest.mark.parametrize("last_close, sold", [(84.0, True), (86.0, False)])
+def test_stop_loss_sells_a_neutral_position_after_a_15pct_drop(backtester, last_close, sold):
+    backtester._execute_buy("X", buy_signal(100.0), pd.Timestamp("2024-01-02"))
+    backtester.analyze_on_date = lambda ticker, date: neutral_signal(83.0, last_close)
+
+    backtester.execute_rebalance(pd.Timestamp("2024-02-01"), ["X"])
+
+    assert ("X" not in backtester.positions) is sold
+    if sold:
+        assert backtester.trades[-1].recommendation == "STOP-LOSS"
+        assert backtester.trades[-1].price == 83.0  # exécuté à l'ouverture
