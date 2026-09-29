@@ -45,3 +45,7 @@ results/
 
 # Journal de rebalance : positions et montants réels (données personnelles)
 journal/
+
+# Claude Code : config projet versionnée, réglages perso ignorés
+!.claude/settings.json
+.claude/settings.local.json
