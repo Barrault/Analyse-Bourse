@@ -37,10 +37,12 @@ python src/run_full_backtest.py
 
 1. Exporter ses positions depuis Bourse Direct (fichier `…EUR-JJ_MM_AAAA HH_MM_SS.xlsx`
    dans Téléchargements).
-2. Dans Claude Code : `/rebalance 1500` (espèces disponibles en €), ou directement
-   `python src/rebalance.py --cash 1500`.
+2. Dans Claude Code : `/rebalance` (il demande les espèces disponibles de chaque compte),
+   ou directement `python src/rebalance.py --list-exports` puis, pour chaque export retenu,
+   `python src/rebalance.py --cash 1500 --export CHEMIN.xlsx`. Seuls les comptes exportés à
+   la date la plus récente sont traités.
 3. Le plan liste les ventes (signal VENTE ou stop-loss), puis les achats par priorité, avec
-   quantités et montants frais inclus. Il est enregistré dans `journal/` (local, non
+   quantités et montants frais inclus. Il est enregistré dans `journal/`, un fichier par compte (local, non
    versionné) pour suivre la performance réelle face à l'ETF.
 
 Le backtest écrit son journal dans `logs_results/backtest.log` et ses résultats (métriques

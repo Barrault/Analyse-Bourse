@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 import rebalance
-from rebalance import Holding, build_plan, find_latest_export, market_hours_warning, read_positions
+from rebalance import Holding, build_plan, find_latest_exports, market_hours_warning, read_positions
 
 NS = "http://purl.oclc.org/ooxml/spreadsheetml/main"  # Strict OOXML, comme l'export Bourse Direct
 
@@ -39,9 +39,21 @@ def test_latest_export_is_chosen_by_the_date_in_its_name(tmp_path):
     for name in ["508TI0EUR-29_09_2026 16_32_37.xlsx", "508TI0EUR-01_10_2026 08_15_00.xlsx",
                  "508TI0EUR-30_09_2026 23_59_59.xlsx", "autre.xlsx"]:
         (tmp_path / name).write_bytes(b"")
-    assert find_latest_export(tmp_path).name == "508TI0EUR-01_10_2026 08_15_00.xlsx"
+    assert [p.name for p in find_latest_exports(tmp_path)] == ["508TI0EUR-01_10_2026 08_15_00.xlsx"]
     with pytest.raises(FileNotFoundError):
-        find_latest_export(tmp_path / "vide")
+        find_latest_exports(tmp_path / "vide")
+
+
+def test_only_accounts_exported_on_the_latest_date_are_kept(tmp_path):
+    # PEA exporté le 1er octobre ; CTO le 1er et deux fois le 2 : seul le dernier export du CTO
+    for name in ["PEA0EUR-01_10_2026 08_00_00.xlsx", "CTO0EUR-01_10_2026 08_05_00.xlsx",
+                 "CTO0EUR-02_10_2026 08_10_00.xlsx", "CTO0EUR-02_10_2026 07_50_00.xlsx"]:
+        (tmp_path / name).write_bytes(b"")
+    assert [p.name for p in find_latest_exports(tmp_path)] == ["CTO0EUR-02_10_2026 08_10_00.xlsx"]
+    # Les deux comptes exportés le même jour : un export par compte
+    (tmp_path / "PEA0EUR-02_10_2026 07_00_00.xlsx").write_bytes(b"")
+    assert [p.name for p in find_latest_exports(tmp_path)] == ["CTO0EUR-02_10_2026 08_10_00.xlsx",
+                                                                "PEA0EUR-02_10_2026 07_00_00.xlsx"]
 
 
 def signal(recommendation, close, confidence=0.493, technical=5.5):
@@ -99,3 +111,13 @@ def test_main_writes_the_plan_to_the_journal(tmp_path, monkeypatch):
                              resolve=lambda isin: "TTE.PA")
     content = journal.read_text(encoding="utf-8")
     assert "TotalEnergies SE : NEUTRE" in content and "aucune vente" in content
+    assert journal.name.endswith("_508TI0EUR.md")  # un journal par compte
+
+
+def test_main_requires_an_explicit_export_when_several_accounts(tmp_path, capsys):
+    for name in ["PEA0EUR-02_10_2026 07_00_00.xlsx", "CTO0EUR-02_10_2026 08_10_00.xlsx"]:
+        (tmp_path / name).write_bytes(b"")
+    with pytest.raises(SystemExit):
+        rebalance.main(["--cash", "1000", "--downloads", str(tmp_path)])
+    assert rebalance.main(["--list-exports", "--downloads", str(tmp_path)]) is None
+    assert capsys.readouterr().out.count("EUR-02_10_2026") == 2

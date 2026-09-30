@@ -724,3 +724,26 @@ l'écart avec l'ETF en conditions réelles avant d'engager davantage de capital.
 - **Écarté** :
   - Parser l'export dans le skill, en langage naturel : non testable et non reproductible.
   - Un MCP ou une API courtier : Bourse Direct n'en propose pas.
+
+## DEC-26 — Rebalance sur plusieurs comptes : une seule date d'export
+
+- **Contexte** : l'utilisateur a deux comptes (PEA et compte-titres), chacun avec son
+  export de positions. Le script ne retenait qu'un fichier, le plus récent tous comptes
+  confondus, et deux plans du même jour s'écrasaient dans `journal/`.
+- **Décision** :
+  - `find_latest_exports` retient la **date la plus récente** parmi tous les exports, puis
+    l'export le plus récent de **chaque compte ayant un export ce jour-là**. Un compte dont
+    le dernier export est plus ancien n'est pas traité (PEA au 1er octobre, CTO au 1er et
+    au 2 → CTO seul, au 2).
+  - Un plan par compte (`--export`, `--cash` du compte), journal nommé par compte.
+  - Sans `--export`, le script refuse de choisir entre plusieurs comptes.
+- **Justification** : un plan repose sur les positions du moment. Traiter un compte sur un
+  export plus ancien reviendrait à décider sur des positions peut-être périmées ; l'absence
+  d'export frais signale que ce compte n'est pas à rebalancer ce jour-là.
+- **Confidentialité** : la correspondance n° de compte → PEA / CTO est dans
+  `CLAUDE.local.md`, ignoré par git. Le code ne connaît que le motif générique.
+- **Écarté** :
+  - Prendre le dernier export de chaque compte, quelle que soit sa date : mélange des
+    positions de dates différentes.
+  - Un plan unique fusionnant les comptes : les enveloppes fiscales sont distinctes et la
+    stratégie backtestée porte sur un seul portefeuille.

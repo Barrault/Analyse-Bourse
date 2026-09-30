@@ -4,6 +4,17 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 identifiants (A1, S2…) renvoient à [docs/AUDIT.md](docs/AUDIT.md) et les choix sont
 justifiés dans [docs/DECISIONS.md](docs/DECISIONS.md).
 
+## [1.5.0] — 2026-09-30 — Plusieurs comptes
+
+### Modifié
+- `/rebalance` traite chaque compte séparément (PEA, compte-titres). Exports retenus : la
+  date la plus récente, puis l'export le plus récent de chaque compte à cette date ; un
+  compte sans export ce jour-là est ignoré (`--list-exports`, DEC-26).
+- Journal nommé par compte (`journal/AAAA-MM-JJ_<compte>.md`) : deux plans le même jour
+  ne s'écrasent plus.
+- Sans `--export`, le script refuse de choisir si plusieurs comptes ont un export à la
+  même date.
+
 ## [1.4.0] — 2026-09-29 — Routine mensuelle outillée
 
 ### Ajouté

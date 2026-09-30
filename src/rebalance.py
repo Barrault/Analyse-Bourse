@@ -1,6 +1,7 @@
 """
 Plan d'ordres mensuel à partir de l'export de positions Bourse Direct (cf. DEC-25).
 
+    python src/rebalance.py --list-exports              # exports retenus dans ~/Downloads
     python src/rebalance.py --cash 1500                 # export le plus récent de ~/Downloads
     python src/rebalance.py --cash 1500 --export CHEMIN.xlsx
 
@@ -26,7 +27,7 @@ from config_loader import config
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # Nom d'export Bourse Direct : <n° de compte>EUR-JJ_MM_AAAA HH_MM_SS.xlsx
-EXPORT_NAME = re.compile(r"^\w+EUR-(\d{2}_\d{2}_\d{4} \d{2}_\d{2}_\d{2})\.xlsx$")
+EXPORT_NAME = re.compile(r"^(\w+EUR)-(\d{2}_\d{2}_\d{4} \d{2}_\d{2}_\d{2})\.xlsx$")
 PARIS = ZoneInfo("Europe/Paris")
 
 
@@ -53,16 +54,29 @@ class Plan:
 
 # ----------------------- Export de positions ----------------------- #
 
-def find_latest_export(directory: Path) -> Path:
-    """Export le plus récent (d'après la date du nom de fichier) dans `directory`."""
+def find_latest_exports(directory: Path) -> List[Path]:
+    """Exports à traiter dans `directory` : la date (jour) la plus récente parmi tous les
+    exports, puis, pour chaque compte ayant un export ce jour-là, son export le plus récent.
+    Un compte sans export à cette date est ignoré : on ne mélange jamais deux dates."""
     candidates = []
     for path in directory.glob("*EUR-*.xlsx"):
         match = EXPORT_NAME.match(path.name)
         if match:
-            candidates.append((datetime.strptime(match.group(1), "%d_%m_%Y %H_%M_%S"), path))
+            candidates.append((match.group(1), datetime.strptime(match.group(2), "%d_%m_%Y %H_%M_%S"), path))
     if not candidates:
         raise FileNotFoundError(f"Aucun export de positions (…EUR-JJ_MM_AAAA HH_MM_SS.xlsx) dans {directory}")
-    return max(candidates)[1]
+    day = max(when.date() for _, when, _ in candidates)
+    latest: Dict[str, Tuple[datetime, Path]] = {}
+    for account, when, path in candidates:
+        if when.date() == day and (account not in latest or when > latest[account][0]):
+            latest[account] = (when, path)
+    return [latest[account][1] for account in sorted(latest)]
+
+
+def account_of(export: Path) -> str:
+    """N° de compte en tête du nom d'export (nom du fichier à défaut)."""
+    match = EXPORT_NAME.match(export.name)
+    return match.group(1) if match else export.stem
 
 
 def read_positions(path: Path) -> List[Holding]:
@@ -209,16 +223,30 @@ def render(plan: Plan, export: Path, now: datetime) -> str:
 
 
 def main(argv: Optional[List[str]] = None, analyze: Callable = analyze_ticker,
-         resolve: Callable = resolve_ticker) -> Path:
+         resolve: Callable = resolve_ticker) -> Optional[Path]:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--cash", type=float, required=True, help="Espèces disponibles sur le compte (€)")
-    parser.add_argument("--export", type=Path, help="Export de positions (défaut : le plus récent de ~/Downloads)")
+    parser.add_argument("--cash", type=float, help="Espèces disponibles sur le compte (€)")
+    parser.add_argument("--export", type=Path, help="Export de positions (défaut : le plus récent de ~/Downloads, "
+                                                    "s'il est le seul à sa date)")
+    parser.add_argument("--list-exports", action="store_true", help="Affiche les exports retenus et s'arrête")
     parser.add_argument("--downloads", type=Path, default=Path.home() / "Downloads")
     parser.add_argument("--period", default="2y")
     args = parser.parse_args(argv)
 
-    export = args.export or find_latest_export(args.downloads)
+    if args.list_exports:
+        for path in find_latest_exports(args.downloads):
+            print(path)
+        return None
+    if args.cash is None:
+        parser.error("--cash est obligatoire")
+    export = args.export
+    if export is None:
+        exports = find_latest_exports(args.downloads)
+        if len(exports) > 1:
+            parser.error("plusieurs comptes ont un export à la même date ; en choisir un avec --export :\n"
+                         + "\n".join(str(p) for p in exports))
+        export = exports[0]
     holdings = read_positions(export)
     tickers = {h.isin: resolve(h.isin) for h in holdings}
     analyses = {}
@@ -229,7 +257,7 @@ def main(argv: Optional[List[str]] = None, analyze: Callable = analyze_ticker,
 
     now = datetime.now(PARIS)
     report = render(build_plan(holdings, tickers, analyses, args.cash), export, now)
-    journal = PROJECT_ROOT / "journal" / f"{now:%Y-%m-%d}.md"
+    journal = PROJECT_ROOT / "journal" / f"{now:%Y-%m-%d}_{account_of(export)}.md"
     journal.parent.mkdir(exist_ok=True)
     journal.write_text(report, encoding="utf-8")
     print(report)

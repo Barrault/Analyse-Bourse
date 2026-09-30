@@ -25,7 +25,7 @@ Windows : préfixer par `PYTHONIOENCODING=utf-8` quand la sortie est redirigée 
 - `src/backtest.py` : `Backtester` (`add_price_data` → `simulate`), métriques, benchmark
 - `src/calibrate.py` : sélection des composantes et table de confiance (apprentissage/test)
 - `src/config_loader.py` : `config.get("a.b.c")`, **lève `KeyError`** si la clé manque
-- `src/rebalance.py` : export de positions (Strict OOXML, lu sans openpyxl) → plan d'ordres → `journal/` (non versionné)
+- `src/rebalance.py` : export de positions (Strict OOXML, lu sans openpyxl) → plan d'ordres par compte → `journal/` (non versionné) ; n° de compte dans `CLAUDE.local.md` (non versionné)
 - `.claude/skills/rebalance/` : routine mensuelle ; `.claude/hooks/guard_git.py` : garde-fous git
 - `config/config.yaml` : tous les paramètres ; les poids sont annotés de leur effet mesuré
 - `tests/conftest.py` : fixtures `snapshot`, `prices` (OHLCV synthétique), `no_fundamentals`
@@ -65,7 +65,7 @@ Windows : préfixer par `PYTHONIOENCODING=utf-8` quand la sortie est redirigée 
 ## Documentation à tenir à jour (dans le même commit que le code)
 
 - `docs/DECISIONS.md` : une entrée `DEC-xx` par choix non trivial (contexte → décision →
-  alternatives écartées → conséquences). Dernière : DEC-25.
+  alternatives écartées → conséquences). Dernière : DEC-26.
 - `CHANGELOG.md` (version aussi dans `pyproject.toml`), `README.md` (état actuel seulement),
   `docs/ROADMAP.md` (pistes), `docs/AUDIT.md` (constats A1…D4, historique).
 - Chiffres de performance : toujours avec la période et la comparaison à l'ETF, jamais seuls.
