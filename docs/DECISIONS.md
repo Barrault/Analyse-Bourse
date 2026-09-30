@@ -747,3 +747,33 @@ l'écart avec l'ETF en conditions réelles avant d'engager davantage de capital.
     positions de dates différentes.
   - Un plan unique fusionnant les comptes : les enveloppes fiscales sont distinctes et la
     stratégie backtestée porte sur un seul portefeuille.
+
+## DEC-27 — Élargissement de l'univers : règle et critère fixés avant la mesure
+
+*Protocole écrit et commité avant tout calcul ; les résultats sont ajoutés ensuite, sans
+modifier ce qui suit.*
+
+- **Contexte** : l'univers compte 96 titres, choisis à la main (DEC-14). L'utilisateur
+  souhaite davantage de valeurs françaises. L'univers est un réglage : le choisir en
+  regardant la période de test violerait la séparation apprentissage / test (DEC-18).
+- **Règle de sélection** (objective, sans regard sur les rendements) :
+  - Vivier : liste officielle des actions du **marché réglementé Euronext Paris** (MIC
+    XPAR, hors Euronext Growth et Access), téléchargée le 2026-09-30 ; sociétés
+    **françaises** (ISIN `FR…`) ; lignes de bons, droits et warrants exclues. Ticker
+    Yahoo = symbole Euronext + `.PA`.
+  - Liquidité mesurée **sur la période d'apprentissage** (2017-07-01 → 2021-09-30) :
+    au moins 500 séances cotées, et **montant médian échangé ≥ 1 M€ par jour**
+    (clôture × volume). Un ordre de 1 000 € y pèse moins de 0,1 % du volume du jour.
+  - Nouvel univers = univers actuel ∪ titres retenus. Aucun titre actuel n'est retiré
+    (le changement mesuré est uniquement l'ajout).
+- **Critère d'adoption**, évalué sur la **période d'apprentissage** uniquement, poids et
+  table de confiance inchangés. L'élargissement est adopté si les deux conditions tiennent :
+  1. *Qualité des signaux* : le rendement relatif moyen à 3 mois (vs ETF CAC 40) des
+     signaux ACHAT de l'univers élargi est **au moins égal** à celui de l'univers actuel.
+  2. *Portefeuille* : le backtest sur l'apprentissage avec l'univers élargi a un **CAGR au
+     moins égal** à celui de l'univers actuel, et une perte maximale (drawdown) **pas plus
+     de 5 points plus forte**.
+- **Période de test** (2022 → aujourd'hui) : résultats rapportés pour information. Ils ne
+  peuvent **pas** renverser la décision.
+- **Si adopté** : `calibrate.py features` (la règle de sélection des composantes reste
+  celle de DEC-19), `calibrate`, `evaluate`, mise à jour de la table de confiance.
