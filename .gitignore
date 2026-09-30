@@ -49,3 +49,6 @@ journal/
 # Claude Code : config projet versionnée, réglages perso ignorés
 !.claude/settings.json
 .claude/settings.local.json
+
+# Instructions Claude Code personnelles (n° de compte)
+CLAUDE.local.md
