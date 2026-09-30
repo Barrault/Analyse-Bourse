@@ -65,7 +65,7 @@ Windows : préfixer par `PYTHONIOENCODING=utf-8` quand la sortie est redirigée 
 ## Documentation à tenir à jour (dans le même commit que le code)
 
 - `docs/DECISIONS.md` : une entrée `DEC-xx` par choix non trivial (contexte → décision →
-  alternatives écartées → conséquences). Dernière : DEC-26.
+  alternatives écartées → conséquences). Dernière : DEC-27.
 - `CHANGELOG.md` (version aussi dans `pyproject.toml`), `README.md` (état actuel seulement),
   `docs/ROADMAP.md` (pistes), `docs/AUDIT.md` (constats A1…D4, historique).
 - Chiffres de performance : toujours avec la période et la comparaison à l'ETF, jamais seuls.

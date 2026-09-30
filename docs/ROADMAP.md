@@ -20,7 +20,8 @@ Mises à jour après la version 1.3.0 (2026-09-29). Par ordre de valeur estimée
    de taux (DEC-23) : il faudrait le tester sur plusieurs cycles, pas une seule période.
    Le filtre « entreprise en perte » est à juger en suivi réel.
 7. **Univers historique** : utiliser des compositions d'indice datées pour supprimer le
-   biais du survivant, plus fort sur 10 ans.
+   biais du survivant, plus fort sur 10 ans. L'élargissement à 37 valeurs françaises
+   liquides a été testé puis écarté (DEC-27) : les signaux ACHAT y sont moins bons.
 8. **Cache disque des cotations** : utile pour itérer vite sur le calibrage.
 9. **Qualité du dividende, risque de portefeuille** : taux de distribution, limite par
    secteur, trailing stop.

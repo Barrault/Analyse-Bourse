@@ -777,3 +777,37 @@ modifier ce qui suit.*
   peuvent **pas** renverser la décision.
 - **Si adopté** : `calibrate.py features` (la règle de sélection des composantes reste
   celle de DEC-19), `calibrate`, `evaluate`, mise à jour de la table de confiance.
+
+### Résultats (2026-09-30)
+
+- **Sélection** : 303 lignes françaises dans le vivier, dont 213 hors univers ; **37
+  retenues** (Forvia, Klépierre, Casino, Gecina, Emeis, Rexel, Ipsen, Covivio, Sartorius
+  Stedim, Viridien, Soitec, Eurazeo, Lagardère, Wendel, Icade, Imerys, OPmobility,
+  Christian Dior, Alten, Elior, Sopra Steria, DBV, Trigano, Genfit, Solutions 30, TF1,
+  Maisons du Monde, M6, Vantiva, Coface, Quadient, Verallia, Solocal, Innate Pharma,
+  Virbac, Ayvens, SMCP). Univers élargi : 133 titres.
+- **Apprentissage (décision)**, 2017-07 → 2021-09 :
+
+  | | Actuel (96) | Élargi (133) | ETF CAC 40 |
+  |---|---:|---:|---:|
+  | C1 — ACHAT, rendement relatif moyen à 3 mois | −0,01 % (n = 1 760) | −0,34 % (n = 2 368) | |
+  | C2 — CAGR du backtest | +4,89 % | +5,65 % | +8,24 % |
+  | C2 — Perte maximale | −35,1 % | −35,7 % | −38,5 % |
+
+  Les signaux ACHAT des 37 titres ajoutés font en moyenne −1,27 % face à l'ETF (n = 608).
+  **C1 échoue** : les ajouts diluent la qualité des signaux. Le gain de CAGR du
+  portefeuille (C2) tient à quelques achats sur un seul chemin historique, pas à des
+  signaux meilleurs. **Décision : l'univers n'est pas élargi.**
+- **Test (information seulement)**, 2022-01 → 2026-09 : les ACHAT des titres ajoutés font
+  −2,49 % face à l'ETF (n = 530). Backtest : CAGR +8,15 % pour l'univers actuel, +7,73 %
+  pour l'univers élargi, +5,54 % pour l'ETF ; perte maximale −20,9 %, −22,0 % et −20,9 %.
+  Le test va dans le même sens que l'apprentissage. La simulation de l'univers actuel
+  retrouve le backtest officiel (CAGR +8,23 %), à l'écart près des mises à jour Yahoo.
+- **Lecture** : le score technique a été construit et sélectionné sur des titres plutôt
+  grands et liquides. Les ajouts sont plus petits, plus endettés ou plus spéculatifs
+  (Casino, Emeis, Solocal, Vantiva, biotechs). Le score y produit des ACHAT qui
+  sous-performent. Élargir l'univers n'est donc pas neutre : cela revient à appliquer la
+  stratégie hors du domaine où elle a été mesurée.
+- **Reproductibilité** : liste Euronext (`live.euronext.com`, téléchargement CSV des
+  actions XPAR) ; seuils et critères ci-dessus. Les scripts d'expérience n'ont pas été
+  versionnés, car aucune fonctionnalité n'en découle.
