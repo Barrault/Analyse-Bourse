@@ -4,8 +4,8 @@
 importScripts("page_account.js");  // displayedAccountInPage, marketPhase
 
 const HOST = "fr.analyse_boursiere.rebalance";
-let busy = null;     // compte en cours d'analyse ("" si inconnu) ; en mémoire : pas de course
-let pending = null;  // compte signalé par la page pendant une analyse : { tabId, account }
+let busy = null;          // compte en cours d'analyse ("" si inconnu) ; en mémoire : pas de course
+const queue = new Map();  // compte signalé pendant une analyse → copie de la page prise à ce moment
 
 // Une première version désactivait l'icône hors de Bourse Direct (declarativeContent), ce
 // qu'Opera n'applique pas : état et règles persistent, on les annule.
@@ -39,17 +39,22 @@ async function displayedAccount(tabId) {
 //   plans     { <n° de compte>: { at, result } }  dernier plan de chaque compte
 //   running   { at, account } pendant une analyse (account : compte attendu, si connu)
 //   lastError { at, error } si la dernière analyse a échoué
-async function analyze(tabId, account = null) {
+async function readPage(tabId) {
+  const frames = await chrome.scripting.executeScript({
+    target: { tabId, allFrames: true },
+    func: () => document.documentElement.outerHTML,
+  });
+  return frames.map((f) => f.result).filter(Boolean);
+}
+
+// frames : copie de la page déjà prise (compte en file d'attente), sinon lue maintenant
+async function analyze(tabId, account = null, frames = null) {
   if (busy !== null) return;  // une seule analyse à la fois (le bouton est grisé pendant ce temps)
   busy = account ?? "";
   await chrome.storage.session.set({ running: { at: Date.now(), account } });
   let result;
   try {
-    const frames = await chrome.scripting.executeScript({
-      target: { tabId, allFrames: true },
-      func: () => document.documentElement.outerHTML,
-    });
-    result = await askHost({ type: "plan", frames: frames.map((f) => f.result).filter(Boolean) });
+    result = await askHost({ type: "plan", frames: frames ?? await readPage(tabId) });
   } catch (error) {
     result = { ok: false, error: String(error) };
   }
@@ -62,22 +67,30 @@ async function analyze(tabId, account = null) {
     await chrome.storage.session.set({ running: null, lastError: { at, error: result.error } });
   }
   busy = null;
-  if (pending) {
-    const next = pending;
-    pending = null;
-    await autoAnalyze(next.tabId, next.account);
-  }
+  await drainQueue();
 }
 
-// Compte signalé par la page : analyse s'il n'a pas encore de plan pour la période en cours
+async function drainQueue() {
+  if (busy !== null || queue.size === 0) return;
+  const [account, frames] = queue.entries().next().value;
+  queue.delete(account);
+  await analyze(null, account, frames);
+}
+
+// Compte signalé par la page : analyse s'il n'a pas encore de plan pour la période en cours.
+// Pendant une autre analyse, la page est copiée tout de suite : quand viendra son tour,
+// l'utilisateur aura pu afficher un autre compte.
 async function autoAnalyze(tabId, account) {
-  if (busy !== null) {
-    if (busy !== account) pending = { tabId, account };
-    return;
-  }
   const { plans = {} } = await chrome.storage.session.get("plans");
   if (plans[account] && marketPhase(plans[account].at) === marketPhase(Date.now())) return;
-  await analyze(tabId, account);
+  if (busy === account) return;
+  if (busy === null) return analyze(tabId, account);
+  try {
+    queue.set(account, await readPage(tabId));
+  } catch {
+    return;  // onglet fermé entre-temps
+  }
+  await drainQueue();  // l'analyse en cours a pu se terminer pendant la copie
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {

@@ -18,7 +18,7 @@ import sys
 import zipfile
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Callable, Dict, List, Optional, Tuple
@@ -127,31 +127,45 @@ def resolve_ticker(isin: str) -> Optional[str]:
 
 # ----------------------- Signaux du jour ----------------------- #
 
-def signals_cache_path(cache_dir: Path, period: str, now: datetime) -> Optional[Path]:
-    """Les signaux ne changent qu'avec une nouvelle clôture : on les garde pour la journée,
-    à part avant l'ouverture (clôture de la veille) et après la clôture (celle du jour).
-    En séance, pas de cache : la bougie du jour est incomplète."""
+def signals_cache_path(cache_dir: Path, period: str, now: datetime) -> Path:
+    """Les signaux ne changent qu'avec une nouvelle clôture : un fichier par période de la
+    journée, avant l'ouverture (clôture de la veille), en séance, après la clôture (celle du
+    jour). En séance, la bougie du jour est incomplète : voir `cache_is_fresh`."""
     if market_hours_warning(now):
-        return None
-    phase = "avant-ouverture" if (now.hour, now.minute) < (9, 0) else "apres-cloture"
+        phase = "seance"
+    else:
+        phase = "avant-ouverture" if (now.hour, now.minute) < (9, 0) else "apres-cloture"
     return cache_dir / f"signals_{now:%Y-%m-%d}_{phase}_{period}.json"
+
+
+def cache_is_fresh(cached: dict, now: datetime) -> bool:
+    """Hors séance, valable pour toute la période ; en séance, les cours bougent : signaux
+    réutilisés pendant `trading.rebalance.session_cache_minutes` seulement (DEC-31)."""
+    if "signals" not in cached:
+        return False  # ancien format, sans date de calcul
+    if not market_hours_warning(now):
+        return True
+    age = now - datetime.fromisoformat(cached["computed_at"])
+    return age < timedelta(minutes=config.get('trading.rebalance.session_cache_minutes'))
 
 
 def load_analyses(period: str, now: datetime, analyze: Callable = analyze_ticker,
                   cache_dir: Optional[Path] = None) -> Dict[str, Tuple[dict, object]]:
-    """Signal du jour de chaque titre de l'univers (≈ 1 min), relu depuis le cache s'il existe.
+    """Signal du jour de chaque titre de l'univers (≈ 1 min), relu depuis le cache s'il est à jour.
     Seuls les champs utilisés par build_plan sont gardés : décision, confiance, score, clôture."""
     path = signals_cache_path(cache_dir, period, now) if cache_dir else None
     if path and path.exists():
         cached = json.loads(path.read_text(encoding="utf-8"))
-        return {t: ({k: v for k, v in s.items() if k != "close"}, SimpleNamespace(close=s["close"]))
-                for t, s in cached.items()}
+        if cache_is_fresh(cached, now):
+            return {t: ({k: v for k, v in s.items() if k != "close"}, SimpleNamespace(close=s["close"]))
+                    for t, s in cached["signals"].items()}
     analyses = {t: result for t in NOMS_ENTREPRISES if (result := analyze(t, period)) is not None}
     if path:
         path.parent.mkdir(exist_ok=True)
-        path.write_text(json.dumps({t: {"recommendation": o["recommendation"], "confidence": float(o["confidence"]),
-                                        "technical_score": float(o["technical_score"]), "close": float(s.close)}
-                                    for t, (o, s) in analyses.items()}), encoding="utf-8")
+        signals = {t: {"recommendation": o["recommendation"], "confidence": float(o["confidence"]),
+                       "technical_score": float(o["technical_score"]), "close": float(s.close)}
+                   for t, (o, s) in analyses.items()}
+        path.write_text(json.dumps({"computed_at": now.isoformat(), "signals": signals}), encoding="utf-8")
     return analyses
 
 

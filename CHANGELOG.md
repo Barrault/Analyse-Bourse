@@ -10,6 +10,12 @@ justifiés dans [docs/DECISIONS.md](docs/DECISIONS.md).
 - Sur « Mes portefeuilles », l'analyse du compte affiché se lance seule, sans clic, une fois
   par compte et par période de marché (avant 9 h, séance, après la clôture). Changer de
   compte sur le site lance l'analyse de l'autre compte (DEC-30).
+- En séance, signaux réutilisés 15 min (`trading.rebalance.session_cache_minutes`) : le
+  second compte est calculé en quelques secondes (DEC-31).
+
+### Corrigé
+- Un compte affiché pendant l'analyse d'un autre est copié aussitôt : revenir au premier
+  compte avant la fin ne fait plus perdre le plan du second (DEC-31).
 
 ## [1.7.0] — 2026-10-27 — Un plan par compte dans l'extension
 

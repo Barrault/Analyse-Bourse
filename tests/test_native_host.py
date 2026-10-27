@@ -2,7 +2,7 @@
 import io
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -45,7 +45,7 @@ def test_plan_from_the_page_follows_the_tested_rules(tmp_path, monkeypatch):
     json.dumps(response)  # sérialisable tel quel vers l'extension
 
 
-def test_signals_are_cached_for_the_day_but_not_in_session(tmp_path):
+def test_signals_are_cached_for_the_period_and_briefly_in_session(tmp_path):
     calls = []
 
     def analyze(ticker, period):
@@ -54,9 +54,16 @@ def test_signals_are_cached_for_the_day_but_not_in_session(tmp_path):
 
     first = load_analyses("2y", AFTER_CLOSE, analyze, tmp_path)
     n = len(calls)
-    assert load_analyses("2y", AFTER_CLOSE, analyze, tmp_path) == first and len(calls) == n
+    later = AFTER_CLOSE + timedelta(hours=4)  # même période (après la clôture) : pas de recalcul
+    assert load_analyses("2y", later, analyze, tmp_path) == first and len(calls) == n
+
+    # En séance : un fichier à part (bougie incomplète), réutilisé 15 min seulement (DEC-31)
     load_analyses("2y", IN_SESSION, analyze, tmp_path)
-    assert len(calls) == 2 * n  # en séance, recalcul systématique
+    assert len(calls) == 2 * n
+    load_analyses("2y", IN_SESSION + timedelta(minutes=14), analyze, tmp_path)
+    assert len(calls) == 2 * n
+    load_analyses("2y", IN_SESSION + timedelta(minutes=16), analyze, tmp_path)
+    assert len(calls) == 3 * n
 
 
 def test_installer_allows_only_the_given_extension(tmp_path):

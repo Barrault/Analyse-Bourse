@@ -115,6 +115,10 @@ trading:
   # Rebalancing : 1er jour de cotation de chaque période, ordres au cours d'ouverture
   rebalance:
     frequency: "month"  # Options: "week", "month", "quarter"
+    # Plan calculé en séance (indicatif, bougie incomplète) : signaux réutilisés pendant ce
+    # délai, pour qu'un second compte ne retélécharge pas tout (DEC-31). Hors séance, le
+    # cache vaut pour toute la période (avant l'ouverture / après la clôture).
+    session_cache_minutes: 15
 
 # ============================== FEES (Bourse Direct) ==============================
 fees:

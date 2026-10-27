@@ -924,3 +924,26 @@ modifier ce qui suit.*
     session de l'utilisateur.
   - Relancer à chaque visite : en séance, sans cache, chaque analyse prend ≈ 1 min 30 et
     télécharge les cours des 96 valeurs.
+
+## DEC-31 — Deux comptes à la suite : copie de page immédiate, signaux réutilisés en séance
+
+- **Contexte** : avec l'analyse automatique (DEC-30), un compte affiché pendant l'analyse
+  d'un autre attendait son tour, et sa page n'était lue qu'au démarrage de son analyse. Si
+  l'utilisateur était revenu entre-temps sur le premier compte, celui-ci était analysé deux
+  fois et le second jamais. En séance, sans cache, chaque compte coûtait en plus ≈ 1 min 30.
+- **Décision** :
+  - La page d'un compte en attente est **copiée dès qu'il est affiché**, puis traitée après
+    l'analyse en cours (une copie par compte, la plus récente).
+  - Les deux analyses restent successives, pas parallèles. En séance, les signaux calculés
+    pour le premier compte sont **réutilisés pendant `trading.rebalance.session_cache_minutes`
+    (15 min)** : le second compte prend quelques secondes au lieu de retélécharger les cours.
+    Hors séance, le cache vaut toujours pour toute la période.
+- **Révision de DEC-28** (« jamais de cache en séance ») : un plan calculé en séance n'est
+  qu'indicatif (bougie du jour incomplète, avertissement affiché). Quinze minutes d'écart sur
+  des cours intrajournaliers ne changent rien à cet usage. Le plan à appliquer, avant 9 h ou
+  après la clôture, n'est pas concerné.
+- **Écarté** : deux analyses en parallèle, soit deux téléchargements des 96 valeurs en même
+  temps. Même durée totale que la réutilisation des signaux, avec deux fois plus de requêtes
+  vers Yahoo.
+- **Format du cache** : `{"computed_at", "signals"}`. Un fichier à l'ancien format est
+  recalculé.

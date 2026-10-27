@@ -22,6 +22,17 @@ PAGE_URL = "https://www.boursedirect.fr/fr/mon-compte/portefeuilles"
 FIXTURE_ACCOUNT = "508TI00000000001EUR"
 OTHER_ACCOUNT = "508TI00000000002EUR"
 # Attend le plan d'un compte dans le stockage de session (analyse ≈ 1 min 30 sans cache)
+WAIT_FOR_RUNNING = """() => new Promise((resolve) => {
+    const check = async () => {
+        const { running } = await chrome.storage.session.get('running');
+        running ? resolve(running) : setTimeout(check, 200);
+    };
+    check();
+})"""
+# Simule un changement de compte : nombre d'actifs annoncé par chaque carte (PEA, CTO)
+SHOW_ACCOUNTS = """(counts) => document.querySelectorAll('[data-id]').forEach((card, i) => {
+    card.querySelector('[class*=assetNb]').textContent = `${counts[i]} actifs`;
+})"""
 WAIT_FOR_PLAN = """(account) => new Promise((resolve, reject) => {
     const started = Date.now();
     const check = async () => {
@@ -69,25 +80,26 @@ def test_plan_is_computed_from_the_page_and_displayed(browser_context):
     tab_id = worker.evaluate("async (url) => (await chrome.tabs.query({url}))[0].id", PAGE_URL)
     assert worker.evaluate("(tabId) => displayedAccount(tabId)", tab_id) == FIXTURE_ACCOUNT  # règle de DEC-29
     # Aucun clic : l'arrivée sur la page lance l'analyse du compte affiché (DEC-30)
-    plans = worker.evaluate(WAIT_FOR_PLAN, FIXTURE_ACCOUNT)
+    worker.evaluate(WAIT_FOR_RUNNING)
+    # Pendant l'analyse du PEA, l'utilisateur passe au CTO puis revient au PEA : la page du
+    # CTO est copiée dès son affichage, et son plan calculé ensuite (DEC-31)
+    page.evaluate(SHOW_ACCOUNTS, [1, 5])  # PEA « 1 actif », CTO « 5 actifs » = 5 lignes
+    page.wait_for_timeout(5_000)          # deux relevés du script de contenu
+    page.evaluate(SHOW_ACCOUNTS, [5, 7])  # retour au PEA
+    plans = worker.evaluate(WAIT_FOR_PLAN, OTHER_ACCOUNT)
     store = worker.evaluate("() => chrome.storage.session.get(['plans', 'running', 'lastError'])")
     assert not store.get("lastError"), store["lastError"]
-    result = plans[FIXTURE_ACCOUNT]["result"]
+    result, other = plans[FIXTURE_ACCOUNT]["result"], plans[OTHER_ACCOUNT]["result"]
     assert result["account_type"] == "PEA" and result["plan"]["cash_start"] == 1234.56
+    assert other["account_type"] == "CTO"
+    # Signaux du PEA réutilisés en séance : le CTO ne retélécharge pas les cours
+    assert plans[OTHER_ACCOUNT]["at"] - plans[FIXTURE_ACCOUNT]["at"] < 30_000
 
     # Nouvelle visite dans la même période : pas de nouvelle analyse
     page.reload()
     page.wait_for_timeout(6_000)  # trois relevés du script de contenu
     store = worker.evaluate("() => chrome.storage.session.get(['plans', 'running'])")
     assert not store.get("running") and store["plans"][FIXTURE_ACCOUNT]["at"] == plans[FIXTURE_ACCOUNT]["at"]
-
-    # Plan d'un deuxième compte, plus récent : chaque compte garde le sien
-    other = {**result, "account": OTHER_ACCOUNT, "account_type": "CTO"}
-    worker.evaluate("""async (result) => {
-        const { plans } = await chrome.storage.session.get('plans');
-        plans[result.account] = { at: Date.now() + 1000, result };
-        await chrome.storage.session.set({ plans });
-    }""", other)
 
     popup = browser_context.new_page()
     errors = []
