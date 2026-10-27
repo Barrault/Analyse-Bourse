@@ -7,8 +7,9 @@ justifiés dans [docs/DECISIONS.md](docs/DECISIONS.md).
 ## [1.9.0] — 2026-10-27 — Signaux ACHAT sans montant dans l'extension
 
 ### Modifié
-- L'extension liste tous les signaux ACHAT par priorité (cours, confiance), sans quantité ni
-  montant suggéré ; la trésorerie s'arrête au solde après ventes. Le plan chiffré reste dans
+- L'extension liste tous les signaux ACHAT par priorité (cours, score technique), sans
+  quantité ni montant suggéré ; la confiance, identique pour tous les ACHAT, est donnée une
+  fois ; la trésorerie s'arrête au solde après ventes. Le plan chiffré reste dans
   `rebalance.py` et le journal (DEC-32).
 
 ## [1.8.0] — 2026-10-27 — Analyse automatique dans l'extension

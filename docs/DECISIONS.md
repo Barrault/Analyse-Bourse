@@ -955,8 +955,13 @@ modifier ce qui suit.*
   noms. L'utilisateur veut les voir tous, et choisir lui-même quoi acheter et pour combien.
 - **Décision** : dans l'extension, la section achats devient « Signaux ACHAT » : **tous** les
   signaux ACHAT des titres non détenus, par ordre de priorité de la stratégie (confiance,
-  puis score technique), avec cours et confiance, **sans quantité ni montant**. La
+  puis score technique), avec cours et score technique, **sans quantité ni montant**. La
   trésorerie affichée s'arrête au solde après ventes.
+- **Confiance** : calibrée par tranches de score (DEC-20), elle est identique pour tous les
+  ACHAT avec la table actuelle (49,3 % : les deux tranches au-dessus de 3,5 ont été
+  fusionnées par la régression isotone). Elle est alors donnée une fois, en tête de liste,
+  et l'ordre affiché est celui du score technique. Si les ACHAT ont des confiances
+  différentes, la colonne réapparaît.
 - **Invariant préservé** : `build_plan` est inchangé (signaux, ordre de priorité, ventes) ;
   seul l'affichage de l'extension change. Le plan chiffré complet (quantités, montants,
   limite des espèces) reste dans `rebalance.py` en ligne de commande et dans le journal. Il

@@ -51,11 +51,22 @@ function renderPlan(result) {
   // (DEC-32). Même ordre de priorité que la stratégie : confiance, puis score technique.
   const signals = [...p.buys, ...p.skipped_buys]
     .sort((a, b) => b.confidence - a.confidence || b.technical_score - a.technical_score);
-  planBox.append(section("2. Signaux ACHAT (par priorité)", "buys",
-    [["#", 1], ["Titre"], ["Cours", 1], ["Confiance", 1]],
+  // La confiance calibrée est par tranches de score : tous les ACHAT ont souvent la même
+  // (49,3 % aujourd'hui). Dans ce cas une seule ligne, et le score technique fait l'ordre.
+  const share = (x) => `${(x * 100).toFixed(1).replace(".", ",")} %`;
+  const sameConfidence = new Set(signals.map((b) => b.confidence)).size === 1;
+  const headers = [["#", 1], ["Titre"], ["Cours", 1], ["Score tech.", 1]];
+  if (!sameConfidence) headers.push(["Confiance", 1]);
+  const box = section("2. Signaux ACHAT (par priorité)", "buys", headers,
     signals.map((b, i) => [i + 1, `${b.name} (${b.ticker})`, eur(b.price),
-                           `${(b.confidence * 100).toFixed(1).replace(".", ",")} %`]),
-    "Aucun signal ACHAT."));
+                           `${b.technical_score >= 0 ? "+" : ""}${b.technical_score.toFixed(1).replace(".", ",")}`,
+                           ...(sameConfidence ? [] : [share(b.confidence)])]),
+    "Aucun signal ACHAT.");
+  if (signals.length && sameConfidence) {
+    box.insertBefore(el("p", `Tous ces titres ont la même probabilité historique de battre le CAC 40 à 3 mois : ` +
+      `${share(signals[0].confidence)}. L'ordre suit donc le score technique.`, "muted"), box.children[1]);
+  }
+  planBox.append(box);
   planBox.append(section("3. Positions conservées", "", [["Titre"], ["Signal"], ["+/- vs PRU", 1]],
     p.keeps.map((k) => [k.name, k.recommendation, pct(k.pnl_pct)]), "Aucune."));
   if (p.manual.length) {
