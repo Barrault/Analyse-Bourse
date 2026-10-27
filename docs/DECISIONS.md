@@ -811,3 +811,40 @@ modifier ce qui suit.*
 - **Reproductibilité** : liste Euronext (`live.euronext.com`, téléchargement CSV des
   actions XPAR) ; seuils et critères ci-dessus. Les scripts d'expérience n'ont pas été
   versionnés, car aucune fonctionnalité n'en découle.
+
+## DEC-28 — Extension Opera : la page est lue par le navigateur, le plan reste en Python
+
+- **Contexte** : la routine mensuelle passe par un export xlsx par compte, puis par la
+  saisie des espèces. L'utilisateur veut une extension Opera qui lit ses positions sur le
+  site Bourse Direct et affiche les ordres à passer. Une extension n'exécute que du
+  JavaScript ; la stratégie (score, confiance calibrée, `build_plan`) est en Python, et
+  l'analyse du jour doit rester identique à la stratégie backtestée.
+- **Décision** :
+  - L'extension (`extension/`, Manifest V3, compatible Opera et Chrome) ne contient
+    **aucune règle de la stratégie**. Au clic, elle copie le HTML de la page affichée (un
+    texte par cadre) et l'envoie à un programme local ; elle affiche le plan reçu.
+  - Le programme local est un **hôte Native Messaging** (`src/native_host.py`) : le
+    navigateur le lance pour chaque demande, il répond puis s'arrête. Il décode la page
+    (`src/bourse_direct_page.py`) et appelle les fonctions de `rebalance.py` sans les modifier
+    (`build_plan`, `render`, journal par compte).
+  - Les signaux du jour sont mis en cache dans `results/` (un fichier par jour, à part avant
+    l'ouverture et après la clôture, jamais en séance). La ligne de commande s'en sert aussi.
+  - Installation par `src/install_native_host.py` : lanceur et manifeste dans `native_host/`
+    (non versionné), clé de registre de l'utilisateur. Seul l'identifiant d'extension donné
+    peut lancer l'hôte.
+- **Sécurité** : l'extension est en lecture seule (aucun clic, aucune saisie, aucun ordre),
+  elle ne lit la page qu'au clic et seulement sur `*.boursedirect.fr`. Aucun port réseau
+  n'est ouvert. Le plan est gardé en stockage de session du navigateur (effacé à la
+  fermeture) et dans `journal/` (ignoré par git). Le journal de l'hôte ne contient ni
+  positions ni HTML. L'affichage n'utilise que `textContent`.
+- **Décodage en Python** plutôt qu'en JavaScript : il est testé par pytest sur une copie
+  anonymisée de la page, comme le reste du projet.
+- **Écarté** :
+  - Porter la stratégie en JavaScript : deux implémentations qui divergeraient, contraire à
+    « analyse du jour = stratégie backtestée ».
+  - Serveur HTTP local : processus à lancer et à laisser tourner, port joignable par toute
+    page ouverte dans le navigateur (contrôle d'origine et jeton à gérer).
+  - Fichier de signaux précalculé lu par l'extension : `build_plan` serait à réécrire en
+    JavaScript.
+- **Conséquences** : version de l'extension = version du projet (vérifié par un test).
+  L'installation est à refaire si le projet ou le venv est déplacé.

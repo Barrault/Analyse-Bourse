@@ -7,9 +7,11 @@ Plan d'ordres mensuel à partir de l'export de positions Bourse Direct (cf. DEC-
 
 Applique les règles de la stratégie testée : vente sur signal VENTE ou stop-loss, achats
 ACHAT par probabilité puis score technique, montant fixe, actions entières, frais Bourse
-Direct, réserve de trésorerie. Écrit le plan dans journal/AAAA-MM-JJ.md (suivi réel).
+Direct, réserve de trésorerie. Écrit le plan dans journal/AAAA-MM-JJ_<compte>.md (suivi réel).
+Les mêmes fonctions servent l'extension de navigateur (src/native_host.py, DEC-28).
 """
 import argparse
+import json
 import math
 import re
 import sys
@@ -18,6 +20,7 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Callable, Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
@@ -26,6 +29,7 @@ from cac40_analyzer import NOMS_ENTREPRISES, analyze_ticker, order_amount
 from config_loader import config
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_PERIOD = "2y"
 # Nom d'export Bourse Direct : <n° de compte>EUR-JJ_MM_AAAA HH_MM_SS.xlsx
 EXPORT_NAME = re.compile(r"^(\w+EUR)-(\d{2}_\d{2}_\d{4} \d{2}_\d{2}_\d{2})\.xlsx$")
 PARIS = ZoneInfo("Europe/Paris")
@@ -120,6 +124,36 @@ def resolve_ticker(isin: str) -> Optional[str]:
     return next((s for s in symbols if s.endswith(".PA")), symbols[0] if symbols else None)
 
 
+# ----------------------- Signaux du jour ----------------------- #
+
+def signals_cache_path(cache_dir: Path, period: str, now: datetime) -> Optional[Path]:
+    """Les signaux ne changent qu'avec une nouvelle clôture : on les garde pour la journée,
+    à part avant l'ouverture (clôture de la veille) et après la clôture (celle du jour).
+    En séance, pas de cache : la bougie du jour est incomplète."""
+    if market_hours_warning(now):
+        return None
+    phase = "avant-ouverture" if (now.hour, now.minute) < (9, 0) else "apres-cloture"
+    return cache_dir / f"signals_{now:%Y-%m-%d}_{phase}_{period}.json"
+
+
+def load_analyses(period: str, now: datetime, analyze: Callable = analyze_ticker,
+                  cache_dir: Optional[Path] = None) -> Dict[str, Tuple[dict, object]]:
+    """Signal du jour de chaque titre de l'univers (≈ 1 min), relu depuis le cache s'il existe.
+    Seuls les champs utilisés par build_plan sont gardés : décision, confiance, score, clôture."""
+    path = signals_cache_path(cache_dir, period, now) if cache_dir else None
+    if path and path.exists():
+        cached = json.loads(path.read_text(encoding="utf-8"))
+        return {t: ({k: v for k, v in s.items() if k != "close"}, SimpleNamespace(close=s["close"]))
+                for t, s in cached.items()}
+    analyses = {t: result for t in NOMS_ENTREPRISES if (result := analyze(t, period)) is not None}
+    if path:
+        path.parent.mkdir(exist_ok=True)
+        path.write_text(json.dumps({t: {"recommendation": o["recommendation"], "confidence": float(o["confidence"]),
+                                        "technical_score": float(o["technical_score"]), "close": float(s.close)}
+                                    for t, (o, s) in analyses.items()}), encoding="utf-8")
+    return analyses
+
+
 # ----------------------- Plan d'ordres ----------------------- #
 
 def build_plan(holdings: List[Holding], tickers: Dict[str, Optional[str]],
@@ -188,9 +222,9 @@ def market_hours_warning(now: datetime) -> Optional[str]:
     return None
 
 
-def render(plan: Plan, export: Path, now: datetime) -> str:
+def render(plan: Plan, source: str, now: datetime) -> str:
     out = [f"# Plan de rebalance — {now:%d/%m/%Y %H:%M}", "",
-           f"Export : `{export.name}` · Cash déclaré : {plan.cash_start:,.2f} €", ""]
+           f"Source : {source} · Cash déclaré : {plan.cash_start:,.2f} €", ""]
     warning = market_hours_warning(now)
     if warning:
         out += [warning, ""]
@@ -222,6 +256,14 @@ def render(plan: Plan, export: Path, now: datetime) -> str:
     return "\n".join(out) + "\n"
 
 
+def write_journal(report: str, account: str, now: datetime, root: Optional[Path] = None) -> Path:
+    """Journal local et non versionné (données personnelles) : un fichier par compte et par jour."""
+    journal = (root or PROJECT_ROOT) / "journal" / f"{now:%Y-%m-%d}_{re.sub(r'[^A-Za-z0-9]', '_', account)}.md"
+    journal.parent.mkdir(exist_ok=True)
+    journal.write_text(report, encoding="utf-8")
+    return journal
+
+
 def main(argv: Optional[List[str]] = None, analyze: Callable = analyze_ticker,
          resolve: Callable = resolve_ticker) -> Optional[Path]:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -231,7 +273,7 @@ def main(argv: Optional[List[str]] = None, analyze: Callable = analyze_ticker,
                                                     "s'il est le seul à sa date)")
     parser.add_argument("--list-exports", action="store_true", help="Affiche les exports retenus et s'arrête")
     parser.add_argument("--downloads", type=Path, default=Path.home() / "Downloads")
-    parser.add_argument("--period", default="2y")
+    parser.add_argument("--period", default=DEFAULT_PERIOD)
     args = parser.parse_args(argv)
 
     if args.list_exports:
@@ -249,17 +291,10 @@ def main(argv: Optional[List[str]] = None, analyze: Callable = analyze_ticker,
         export = exports[0]
     holdings = read_positions(export)
     tickers = {h.isin: resolve(h.isin) for h in holdings}
-    analyses = {}
-    for ticker in NOMS_ENTREPRISES:
-        result = analyze(ticker, args.period)
-        if result is not None:
-            analyses[ticker] = result
-
     now = datetime.now(PARIS)
-    report = render(build_plan(holdings, tickers, analyses, args.cash), export, now)
-    journal = PROJECT_ROOT / "journal" / f"{now:%Y-%m-%d}_{account_of(export)}.md"
-    journal.parent.mkdir(exist_ok=True)
-    journal.write_text(report, encoding="utf-8")
+    analyses = load_analyses(args.period, now, analyze, PROJECT_ROOT / "results")
+    report = render(build_plan(holdings, tickers, analyses, args.cash), f"export `{export.name}`", now)
+    journal = write_journal(report, account_of(export), now)
     print(report)
     print(f"Plan enregistré dans {journal}")
     return journal

@@ -4,6 +4,18 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 identifiants (A1, S2…) renvoient à [docs/AUDIT.md](docs/AUDIT.md) et les choix sont
 justifiés dans [docs/DECISIONS.md](docs/DECISIONS.md).
 
+## [1.6.0] — non publiée — Extension Opera
+
+### Ajouté
+- Extension Opera (`extension/`) : sur Bourse Direct, lit la page des positions et affiche
+  le plan d'ordres. Lecture seule, aucun ordre passé (DEC-28).
+- Hôte Native Messaging `src/native_host.py`, lancé par le navigateur : même chaîne que
+  `rebalance.py`, journal par compte. Installation : `src/install_native_host.py`.
+
+### Modifié
+- Signaux du jour mis en cache dans `results/` (hors séance) : le plan d'un deuxième compte
+  est immédiat, en ligne de commande comme depuis l'extension.
+
 ## [1.5.0] — 2026-09-30 — Plusieurs comptes
 
 ### Modifié

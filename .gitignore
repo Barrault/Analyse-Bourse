@@ -52,3 +52,7 @@ journal/
 
 # Instructions Claude Code personnelles (n° de compte)
 CLAUDE.local.md
+
+# Hôte natif de l'extension : chemins absolus propres à cette machine
+native_host/
+!extension/manifest.json

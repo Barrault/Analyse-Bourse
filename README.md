@@ -45,6 +45,19 @@ python src/run_full_backtest.py
    quantités et montants frais inclus. Il est enregistré dans `journal/`, un fichier par compte (local, non
    versionné) pour suivre la performance réelle face à l'ETF.
 
+### Extension Opera (en cours, DEC-28)
+
+Sur la page des positions de Bourse Direct, un clic sur l'extension affiche le plan
+d'ordres, sans export xlsx. L'extension ne passe aucun ordre.
+
+1. Opera → `opera://extensions` → mode développeur → « Charger l'extension non empaquetée »
+   → dossier `extension/`. Noter l'identifiant affiché.
+2. Avec le Python du venv : `python src/install_native_host.py --extension-id <identifiant>`,
+   puis redémarrer Opera.
+
+Le navigateur lance alors `src/native_host.py` à chaque analyse (≈ 1 min la première fois
+de la journée, immédiat ensuite). Désinstallation : `--uninstall`.
+
 Le backtest écrit son journal dans `logs_results/backtest.log` et ses résultats (métriques
 de la stratégie et du benchmark, PnL par tranche de confiance) dans
 `results/backtest_results.json`. Ces deux dossiers sont ignorés par git.
@@ -146,6 +159,10 @@ src/backtest.py           Moteur de backtest, métriques, benchmark
 src/run_full_backtest.py  Lancement du backtest avec journal et export JSON
 src/config_loader.py      Lecture stricte de la configuration
 src/rebalance.py          Plan d'ordres mensuel depuis l'export de positions
+src/native_host.py        Hôte de l'extension (plan calculé depuis la page Bourse Direct)
+src/bourse_direct_page.py Lecture des positions sur la page Bourse Direct
+src/install_native_host.py Déclaration de l'hôte auprès du navigateur
+extension/                Extension Opera (lecture de la page, affichage du plan)
 .claude/                  Skill /rebalance et hooks Claude Code (tests avant commit)
 src/calibrate.py          Calibrage (apprentissage) et évaluation (test)
 tests/                    Suite pytest (données synthétiques, sans réseau)

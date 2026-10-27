@@ -1,0 +1,18 @@
+:root { --fg: #1d1d1f; --muted: #6e6e73; --line: #d2d2d7; --sell: #b3261e; --buy: #1b6e3a; --warn: #fff4ce; --bg: #fff; }
+@media (prefers-color-scheme: dark) {
+  :root { --fg: #f5f5f7; --muted: #a1a1a6; --line: #3a3a3c; --sell: #ff8a80; --buy: #7ddc9a; --warn: #4a3f10; --bg: #1c1c1e; }
+}
+body { width: 620px; margin: 0; padding: 12px 16px; font: 13px/1.4 system-ui, sans-serif; color: var(--fg); background: var(--bg); }
+header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+h1 { font-size: 16px; margin: 0; }
+h2 { font-size: 14px; margin: 16px 0 6px; }
+button { padding: 6px 12px; font: inherit; cursor: pointer; }
+.muted { color: var(--muted); }
+.warning { background: var(--warn); padding: 8px; border-radius: 4px; }
+.error { color: var(--sell); }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: left; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.sells h2 { color: var(--sell); }
+.buys h2 { color: var(--buy); }
+footer { margin-top: 16px; font-size: 12px; }
