@@ -6,7 +6,8 @@ ici, en Python, pour être testé sur une copie anonymisée de la page.
 
 La page « Mes portefeuilles » est une application React : les noms de classes CSS changent
 à chaque déploiement, on ne s'appuie que sur les attributs `data-testid` / `data-prt-column`,
-la classe `position-row` et les liens d'instrument `/api/instrument/redirect/<MIC>/<mnémo>/<devise>`.
+la classe `position-row` et les liens d'instrument `/api/instrument/redirect/<MIC>/<mnémo>/<devise>`
+(absents pour un titre sans fiche : la ligne passe alors en décision manuelle).
 """
 import re
 from dataclasses import dataclass, field
@@ -19,6 +20,8 @@ VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
 SKIPPED_TAGS = {"script", "style", "svg"}
 INSTRUMENT_LINK = re.compile(r"/api/instrument/redirect/([A-Z0-9]+)/([^/]+)/([A-Z]{3})")
 ASSET_COUNT = re.compile(r"(\d+)\s*actif")
+# Marché (MIC) → suffixe Yahoo ; ArcelorMittal est dans l'univers sous MT.AS (Amsterdam)
+YAHOO_SUFFIX = {"XPAR": ".PA", "ALXP": ".PA", "XAMS": ".AS"}
 
 
 @dataclass
@@ -122,21 +125,22 @@ def by_column(value: str):
 
 
 def parse_row(row: Node) -> Holding:
+    # Lien absent (href="#") pour un titre sans fiche Bourse Direct, ex. Canal+ coté à Londres
     link = row.find(lambda n: n.tag == "a" and INSTRUMENT_LINK.search(n.attrs.get("href") or ""))
-    if link is None:
-        raise ValueError("ligne de position sans lien d'instrument")
-    mic, symbol, currency = INSTRUMENT_LINK.search(link.attrs["href"]).groups()
-    name_node = link.find(lambda n: any(c.startswith("PositionInstrument-module_name_") for c in n.classes()))
-    name = (name_node.text() if name_node else symbol).strip()
+    mic, symbol, currency = INSTRUMENT_LINK.search(link.attrs["href"]).groups() if link else (None, None, None)
+    name_node = row.find(lambda n: any(c.startswith("PositionInstrument-module_name_") for c in n.classes()))
+    name = (name_node.text() if name_node else symbol or "").strip()
+    if not name:
+        raise ValueError("ligne de position sans nom ni lien d'instrument")
 
     def value(predicate, label: str) -> float:
         node = row.find(predicate)
         if node is None:
             raise ValueError(f"{name} : {label} introuvable")
-        return parse_number(node.text().replace("PRU :", "").replace(currency, ""))
+        return parse_number(re.sub(r"[A-Za-z:]", "", node.text()))  # « PRU : », devise
 
-    # Mnémonique Euronext Paris + « .PA » = ticker Yahoo ; ailleurs, décision manuelle
-    ticker = f"{symbol}.PA" if mic == "XPAR" and currency == "EUR" else None
+    # Mnémonique + suffixe du marché = ticker Yahoo ; titre non identifié : décision manuelle
+    ticker = f"{symbol}{YAHOO_SUFFIX[mic]}" if mic in YAHOO_SUFFIX and currency == "EUR" else None
     return Holding(name=name, isin="", price=value(by_column("last"), "cours"),
                    quantity=int(value(by_testid("consolidated-quantity"), "quantité")),
                    pru=value(by_testid("consolidated-pru"), "PRU"), ticker=ticker)

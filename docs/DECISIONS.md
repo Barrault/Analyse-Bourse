@@ -844,8 +844,12 @@ modifier ce qui suit.*
     `position-row`, liens `/api/instrument/redirect/<MIC>/<mnémo>/<devise>`. Les noms de
     classes CSS, régénérés à chaque déploiement du site, ne sont pas utilisés (sauf le
     préfixe du nom de titre, avec repli sur le mnémonique).
-  - La page n'affiche pas d'ISIN : ticker Yahoo = mnémonique + `.PA` pour Euronext Paris
-    (`XPAR`, en euros). Autre marché → décision manuelle, comme un titre hors univers.
+  - La page n'affiche pas d'ISIN : ticker Yahoo = mnémonique + suffixe du marché, en
+    euros : `XPAR` et `ALXP` (Euronext Growth) → `.PA`, `XAMS` → `.AS`. Amsterdam compte :
+    ArcelorMittal est dans l'univers sous `MT.AS`, et serait sinon passé pour « hors
+    univers », son signal VENTE ignoré. Autre marché → décision manuelle.
+  - Ligne sans lien d'instrument (`href="#"`, titre sans fiche Bourse Direct, ex. Canal+
+    coté à Londres) : décision manuelle, le plan n'est pas bloqué.
   - Espèces = « Disponible au comptant » (tient compte des ordres en cours), et non le solde.
   - Le sélecteur ne marque pas le compte affiché : on retient la carte dont le nombre
     d'actifs égale le nombre de lignes affichées. Aucune ou plusieurs → **refus**, car un

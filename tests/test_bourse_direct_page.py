@@ -15,16 +15,18 @@ def test_positions_cash_and_account_are_read_from_the_page():
     assert page.holdings == [
         Holding("BNP PARIBAS ACT.A", "", 90.0, 4, 100.5, ticker="BNP.PA"),
         Holding("Amundi PEA S&P 500 UCITS ETF A", "", 60.73, 12, 61.235, ticker="PSP5.PA"),
-        Holding("APPLE INC", "", 1210.4, 1, 1150.0, ticker=None),  # hors Euronext Paris : décision manuelle
+        Holding("APPLE INC", "", 1210.4, 1, 1150.0, ticker=None),  # Nasdaq : décision manuelle
+        Holding("ArcelorMittal", "", 25.1, 8, 20.0, ticker="MT.AS"),  # Amsterdam, dans l'univers
+        Holding("CANAL+", "", 2.56502, 20, 3.4477, ticker=None),  # sans fiche Bourse Direct (href="#")
     ]
 
 
 def test_the_displayed_account_must_be_unambiguous():
     # Aucune carte, ou deux cartes, annoncent autant d'actifs que de lignes : refus plutôt que deviner
     with pytest.raises(ValueError, match="compte affiché"):
-        parse_positions_page([PAGE.replace("3 actifs", "4 actifs")])
+        parse_positions_page([PAGE.replace("5 actifs", "4 actifs")])
     with pytest.raises(ValueError, match="compte affiché"):
-        parse_positions_page([PAGE.replace("7 actifs", "3 actifs")])
+        parse_positions_page([PAGE.replace("7 actifs", "5 actifs")])
 
 
 def test_another_page_is_rejected():
