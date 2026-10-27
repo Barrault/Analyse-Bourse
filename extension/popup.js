@@ -20,8 +20,8 @@ function el(tag, text, className) {
   return node;
 }
 
-// headers : [libellé, colonne numérique ?] ; rowClass(i) : classe CSS de la ligne i
-function section(title, className, headers, rows, empty, rowClass = () => "") {
+// headers : [libellé, colonne numérique ?]
+function section(title, className, headers, rows, empty) {
   const box = el("section", undefined, className);
   box.append(el("h2", title));
   if (!rows.length) { box.append(el("p", empty, "muted")); return box; }
@@ -29,8 +29,8 @@ function section(title, className, headers, rows, empty, rowClass = () => "") {
   const head = el("tr");
   headers.forEach(([label, num]) => head.append(el("th", label, num ? "num" : "")));
   table.append(head);
-  rows.forEach((cells, r) => {
-    const tr = el("tr", undefined, rowClass(r));
+  rows.forEach((cells) => {
+    const tr = el("tr");
     cells.forEach((cell, i) => tr.append(el("td", String(cell), headers[i][1] ? "num" : "")));
     table.append(tr);
   });
@@ -47,30 +47,23 @@ function renderPlan(result) {
     [["Titre"], ["Qté", 1], ["Cours", 1], ["+/- vs PRU", 1], ["Motif"], ["Produit estimé", 1]],
     p.sells.map((s) => [s.name, s.quantity, eur(s.price), pct(s.pnl_pct), s.reason, eur(s.proceeds)]),
     "Aucune vente."));
-  // Tous les signaux ACHAT par priorité : d'abord ceux que le solde finance (le plan de la
-  // stratégie), puis les autres, chiffrés au montant standard (DEC-32)
-  const allBuys = [...p.buys, ...p.skipped_buys];
-  planBox.append(section("2. Achats (tous les signaux ACHAT, par priorité)", "buys",
-    [["#", 1], ["Titre"], ["Qté", 1], ["Cours", 1], ["Montant frais inclus", 1], ["Confiance", 1], ["Financé"]],
-    allBuys.map((b, i) => [i + 1, `${b.name} (${b.ticker})`, b.quantity, eur(b.price), eur(b.cost),
-                           `${(b.confidence * 100).toFixed(1).replace(".", ",")} %`,
-                           i < p.buys.length ? "oui" : `non : ${b.reason}`]),
-    "Aucun signal ACHAT.", (i) => (i < p.buys.length ? "" : "beyond")));
-  if (p.skipped_buys.length) {
-    const funded = p.buys.reduce((sum, b) => sum + b.cost, 0);
-    const beyond = p.skipped_buys.reduce((sum, b) => sum + b.cost, 0);
-    planBox.append(el("p", `Financés par le solde : ${eur(funded)}. Tout acheter demanderait ${eur(beyond)} ` +
-      `de plus (${p.skipped_buys.length} ligne${p.skipped_buys.length > 1 ? "s" : ""}). Le backtest n'achète que les ` +
-      "lignes financées, dans cet ordre.", "muted"));
-  }
+  // Tous les signaux ACHAT, sans quantité ni montant : l'utilisateur décide de ce qu'il achète
+  // (DEC-32). Même ordre de priorité que la stratégie : confiance, puis score technique.
+  const signals = [...p.buys, ...p.skipped_buys]
+    .sort((a, b) => b.confidence - a.confidence || b.technical_score - a.technical_score);
+  planBox.append(section("2. Signaux ACHAT (par priorité)", "buys",
+    [["#", 1], ["Titre"], ["Cours", 1], ["Confiance", 1]],
+    signals.map((b, i) => [i + 1, `${b.name} (${b.ticker})`, eur(b.price),
+                           `${(b.confidence * 100).toFixed(1).replace(".", ",")} %`]),
+    "Aucun signal ACHAT."));
   planBox.append(section("3. Positions conservées", "", [["Titre"], ["Signal"], ["+/- vs PRU", 1]],
     p.keeps.map((k) => [k.name, k.recommendation, pct(k.pnl_pct)]), "Aucune."));
   if (p.manual.length) {
     planBox.append(section("4. Hors stratégie (décision manuelle)", "", [["Titre"], ["Motif"], ["+/- vs PRU", 1]],
       p.manual.map((m) => [m.name, m.reason, pct(m.pnl_pct)]), ""));
   }
-  planBox.append(el("p", `Trésorerie : ${eur(p.cash_start)} → après ventes ${eur(p.cash_after_sells)} → ` +
-    `après achats ${eur(p.cash_end)}. Montants estimés sur le dernier cours ; exécution au cours d'ouverture.`, "muted"));
+  planBox.append(el("p", `Trésorerie : ${eur(p.cash_start)} → après ventes ${eur(p.cash_after_sells)}. ` +
+    "Produits des ventes estimés sur le dernier cours ; exécution au cours d'ouverture.", "muted"));
 }
 
 const hhmm = (at) => {

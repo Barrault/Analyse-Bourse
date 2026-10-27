@@ -948,21 +948,21 @@ modifier ce qui suit.*
 - **Format du cache** : `{"computed_at", "signals"}`. Un fichier à l'ancien format est
   recalculé.
 
-## DEC-32 — Extension : tous les signaux ACHAT, au-delà du solde disponible
+## DEC-32 — Extension : tous les signaux ACHAT, sans montant suggéré
 
-- **Contexte** : le plan ne montrait que les achats financés par les espèces du compte. Les
-  autres signaux ACHAT tenaient en une ligne de noms. L'utilisateur veut les voir tous, pour
-  décider s'il apporte des fonds.
-- **Décision** :
-  - Le tableau des achats liste **tous les signaux ACHAT par priorité** (confiance, puis
-    score technique) : d'abord les lignes financées, qui forment le plan de la stratégie,
-    puis les autres, grisées, avec le motif (trésorerie insuffisante, ou une action plus
-    chère que le montant par ligne).
-  - Les lignes non financées sont chiffrées au montant standard (`trading.order_amount`,
-    au moins une action, frais inclus). Un total indique ce qu'il faudrait en plus pour
-    tout acheter.
-- **Invariant préservé** : `build_plan` applique les mêmes règles. Les lignes non financées
-  sont de l'information, elles ne modifient ni la trésorerie ni l'ordre de priorité.
-  L'extension rappelle que le backtest n'achète que les lignes financées.
-- **Écarté** : ignorer le solde dans le plan. Le plan ne serait plus celui de la stratégie
-  backtestée, qui achète dans la limite des espèces.
+- **Contexte** : le plan ne montrait que les achats financés par les espèces du compte, avec
+  quantité et montant (1 000 € par ligne). Les autres signaux ACHAT tenaient en une ligne de
+  noms. L'utilisateur veut les voir tous, et choisir lui-même quoi acheter et pour combien.
+- **Décision** : dans l'extension, la section achats devient « Signaux ACHAT » : **tous** les
+  signaux ACHAT des titres non détenus, par ordre de priorité de la stratégie (confiance,
+  puis score technique), avec cours et confiance, **sans quantité ni montant**. La
+  trésorerie affichée s'arrête au solde après ventes.
+- **Invariant préservé** : `build_plan` est inchangé (signaux, ordre de priorité, ventes) ;
+  seul l'affichage de l'extension change. Le plan chiffré complet (quantités, montants,
+  limite des espèces) reste dans `rebalance.py` en ligne de commande et dans le journal. Il
+  sert de référence pour comparer le suivi réel au backtest.
+- **Écarté** :
+  - Garder les lignes financées en tête, puis les autres : cela suggère encore un montant,
+    et l'ordre de priorité était rompu (une action plus chère que le montant par ligne,
+    écartée, peut précéder un titre financé).
+  - Ignorer le solde dans le plan lui-même : ce ne serait plus la stratégie backtestée.

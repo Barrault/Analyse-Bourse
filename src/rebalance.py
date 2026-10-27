@@ -205,14 +205,6 @@ def build_plan(holdings: List[Holding], tickers: Dict[str, Optional[str]],
             plan.keeps.append(line)
     plan.cash_after_sells = available
 
-    def standard_order(price: float) -> dict:
-        """Ordre au montant standard (au moins 1 action), pour information : l'ACHAT n'est pas
-        servi par la stratégie, mais l'utilisateur voit ce qu'il coûterait (DEC-32)."""
-        amount = order_amount()
-        quantity = max(1, math.floor((amount - calculate_fees(amount)) / price))
-        gross = quantity * price
-        return {"quantity": quantity, "cost": gross + calculate_fees(gross)}
-
     candidates = sorted(
         ((t, o, s) for t, (o, s) in analyses.items() if o["recommendation"] == "ACHAT" and t not in held_tickers),
         key=lambda x: (x[1]["confidence"], x[1]["technical_score"]), reverse=True)
@@ -221,12 +213,11 @@ def build_plan(holdings: List[Holding], tickers: Dict[str, Optional[str]],
                 "confidence": outcome["confidence"], "technical_score": outcome["technical_score"]}
         budget = min(order_amount(), available - margin_buffer)
         if budget < min_order:
-            plan.skipped_buys.append({**line, **standard_order(snap.close), "reason": "trésorerie insuffisante"})
+            plan.skipped_buys.append({**line, "reason": "trésorerie insuffisante"})
             continue
         quantity = math.floor((budget - calculate_fees(budget)) / snap.close)
         if quantity < 1:
-            plan.skipped_buys.append({**line, **standard_order(snap.close),
-                                      "reason": f"1 action ({snap.close:.2f} €) dépasse le budget"})
+            plan.skipped_buys.append({**line, "reason": f"1 action ({snap.close:.2f} €) dépasse le budget"})
             continue
         gross = quantity * snap.close
         line.update(quantity=quantity, cost=gross + calculate_fees(gross))

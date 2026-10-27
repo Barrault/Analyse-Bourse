@@ -121,7 +121,8 @@ def test_plan_is_computed_from_the_page_and_displayed(browser_context):
     assert popup.locator("#accounts button").count() == 2
     popup.locator("#accounts button", has_text="PEA").click()
     text = shown(f"PEA — {FIXTURE_ACCOUNT}")
-    assert "1. Ventes" in text and "2. Achats" in text and "Disponible au comptant : 1 234,56" in text
+    assert "1. Ventes" in text and "2. Signaux ACHAT" in text and "Disponible au comptant : 1 234,56" in text
+    assert "Montant" not in text and "après achats" not in text  # aucun montant d'achat suggéré (DEC-32)
     assert "BNP PARIBAS ACT.A" in text                     # vendue ou conservée selon le signal du jour
     assert "APPLE INC" in text and "hors univers" in text  # marché étranger : décision manuelle
     assert popup.locator("#analyze").is_enabled()

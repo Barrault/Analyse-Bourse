@@ -82,7 +82,6 @@ def test_plan_applies_the_tested_rules():
     assert [b["ticker"] for b in plan.buys] == ["SAN.PA", "AC.PA"]
     assert plan.buys[0]["quantity"] == 11 and plan.buys[0]["cost"] <= 1000
     assert "dépasse le budget" in plan.skipped_buys[0]["reason"]  # Hermès à 2 100 €
-    assert plan.skipped_buys[0]["quantity"] == 1                    # coût indicatif d'une action
     assert plan.cash_end >= 200 - 1e-9                            # réserve préservée
 
 
@@ -91,8 +90,6 @@ def test_buys_stop_when_cash_runs_out():
     plan = build_plan([], {}, analyses, cash=1400.0)
     assert len(plan.buys) == 2  # 1 000 €, puis 200 € restants au-dessus de la réserve
     assert plan.skipped_buys[0]["reason"] == "trésorerie insuffisante"
-    # Non servi, mais chiffré au montant standard, sans toucher à la trésorerie du plan
-    assert plan.skipped_buys[0]["quantity"] == 99 and plan.skipped_buys[0]["cost"] <= 1000
 
 
 @pytest.mark.parametrize("when, warned", [

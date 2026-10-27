@@ -4,12 +4,12 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 identifiants (A1, S2…) renvoient à [docs/AUDIT.md](docs/AUDIT.md) et les choix sont
 justifiés dans [docs/DECISIONS.md](docs/DECISIONS.md).
 
-## [1.9.0] — 2026-10-27 — Tous les signaux ACHAT dans l'extension
+## [1.9.0] — 2026-10-27 — Signaux ACHAT sans montant dans l'extension
 
-### Ajouté
-- Le tableau des achats montre tous les signaux ACHAT par priorité : les lignes financées
-  par le solde (le plan de la stratégie), puis les autres, chiffrées au montant standard,
-  avec le total à apporter pour tout acheter (DEC-32).
+### Modifié
+- L'extension liste tous les signaux ACHAT par priorité (cours, confiance), sans quantité ni
+  montant suggéré ; la trésorerie s'arrête au solde après ventes. Le plan chiffré reste dans
+  `rebalance.py` et le journal (DEC-32).
 
 ## [1.8.0] — 2026-10-27 — Analyse automatique dans l'extension
 

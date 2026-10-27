@@ -20,4 +20,3 @@ nav#accounts { display: flex; gap: 6px; margin-top: 10px; }
 nav#accounts:empty { display: none; }
 nav#accounts button { padding: 4px 10px; border: 1px solid var(--line); border-radius: 14px; background: none; color: var(--fg); }
 nav#accounts button.selected { border-color: var(--accent); color: var(--accent); font-weight: 600; }
-tr.beyond td { color: var(--muted); }
