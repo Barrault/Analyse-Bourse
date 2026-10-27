@@ -868,3 +868,29 @@ modifier ce qui suit.*
   l'URL de l'onglet. Hors de la bonne page, c'est la lecture qui échoue, avec un message.
   Le chemin complet (page → hôte → affichage) est testé dans Chromium avec Playwright
   (`pytest -m browser`, manuel) : même moteur qu'Opera, même identifiant d'extension.
+
+## DEC-29 — Extension : un plan mémorisé par compte, choisi selon le compte affiché
+
+- **Contexte** : l'extension ne gardait que le dernier plan calculé. Passer du PEA au CTO
+  sur le site, puis revenir, obligeait à relancer l'analyse (≈ 1 min 30 en séance, sans
+  cache).
+- **Décision** :
+  - Le stockage de session garde **le dernier plan de chaque compte** (clé : n° de compte).
+    Il est effacé à la fermeture du navigateur ; seul le journal (`journal/`) persiste.
+  - À l'ouverture, la fenêtre montre le plan du **compte affiché sur la page**. S'il n'a
+    pas encore été analysé, elle le dit, sans montrer le plan d'un autre compte. Des
+    onglets (« PEA · 13:14 ») permettent de consulter les autres plans. L'heure de calcul
+    est toujours affichée, avec un avertissement si le plan montré n'est pas celui du
+    compte affiché.
+  - Le compte affiché est déterminé **en JavaScript, dans la page** : même règle que
+    `displayed_account` en Python (carte dont le nombre d'actifs égale le nombre de lignes,
+    sinon aucun compte).
+- **Justification de l'exception à DEC-28** (décodage en Python) : appeler l'hôte Python à
+  chaque ouverture coûterait 2 à 3 s (chargement de pandas, yfinance). La règle dupliquée ne
+  sert qu'à choisir quel plan montrer ; le plan, lui, vient toujours de Python et porte son
+  n° de compte en titre. Elle est vérifiée par le test `browser` sur la copie anonymisée.
+- **Écarté** :
+  - Analyser automatiquement chaque compte au changement : ce serait lire la page et lancer
+    Python sans action de l'utilisateur (DEC-28 : lecture au clic seulement).
+  - Stockage persistant (`storage.local`) : un plan ne vaut que pour la séance où il a été
+    calculé, et les positions resteraient sur le disque du profil.

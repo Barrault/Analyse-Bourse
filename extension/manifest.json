@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Analyse boursière — rebalance",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Lit vos positions sur Bourse Direct et affiche le plan d'ordres de la stratégie testée. Lecture seule : ne passe aucun ordre.",
   "permissions": ["activeTab", "nativeMessaging", "scripting", "storage"],
   "host_permissions": ["https://*.boursedirect.fr/*"],

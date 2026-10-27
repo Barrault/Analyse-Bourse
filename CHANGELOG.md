@@ -4,6 +4,13 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 identifiants (A1, S2…) renvoient à [docs/AUDIT.md](docs/AUDIT.md) et les choix sont
 justifiés dans [docs/DECISIONS.md](docs/DECISIONS.md).
 
+## [1.7.0] — 2026-10-27 — Un plan par compte dans l'extension
+
+### Ajouté
+- L'extension garde le dernier plan de chaque compte pendant la session du navigateur, et
+  montre celui du compte affiché sur la page. Des onglets PEA / CTO donnent accès aux autres
+  plans, sans relancer l'analyse (DEC-29).
+
 ## [1.6.0] — 2026-10-27 — Extension Opera
 
 ### Ajouté

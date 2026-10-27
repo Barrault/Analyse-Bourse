@@ -55,6 +55,9 @@ d'ordres, sans export xlsx. L'extension ne passe aucun ordre.
 2. Avec le Python du venv : `python src/install_native_host.py --extension-id <identifiant>`,
    puis redémarrer Opera.
 
+La fenêtre garde le dernier plan de chaque compte jusqu'à la fermeture du navigateur : en
+changeant de compte sur le site, elle montre le plan correspondant (onglets PEA / CTO).
+
 Le navigateur lance alors `src/native_host.py` à chaque analyse (≈ 1 min la première fois
 de la journée, immédiat ensuite). Désinstallation : `--uninstall`.
 
