@@ -7,7 +7,7 @@ Installation : python src/install_native_host.py --extension-id <identifiant>.
 
 Messages reçus :
     {"type": "ping"}                     → {"ok": true}
-    {"type": "plan", "frames": [html…]}  → {"ok": true, "account", "warning", "plan", "journal"}
+    {"type": "plan", "frames": [html…]}  → {"ok": true, "account", "account_type", "warning", "plan", "journal"}
 En cas d'erreur : {"ok": false, "error": "..."} (détail dans logs_results/native_host.log).
 """
 import json
@@ -22,7 +22,7 @@ from typing import BinaryIO, Callable, Optional
 from bourse_direct_page import parse_positions_page
 from cac40_analyzer import analyze_ticker
 from rebalance import (DEFAULT_PERIOD, PARIS, PROJECT_ROOT, build_plan, load_analyses, market_hours_warning,
-                       render, resolve_ticker, write_journal)
+                       render, write_journal)
 
 log = logging.getLogger("native_host")
 
@@ -47,8 +47,7 @@ def write_message(stream: BinaryIO, message: dict) -> None:
 
 # ----------------------- Traitement ----------------------- #
 
-def handle(message: dict, now: datetime, analyze: Callable = analyze_ticker,
-           resolve: Callable = resolve_ticker, root: Path = PROJECT_ROOT) -> dict:
+def handle(message: dict, now: datetime, analyze: Callable = analyze_ticker, root: Path = PROJECT_ROOT) -> dict:
     """Même chaîne que `rebalance.py --cash … --export …`, positions lues sur la page."""
     kind = message.get("type")
     if kind == "ping":
@@ -56,12 +55,13 @@ def handle(message: dict, now: datetime, analyze: Callable = analyze_ticker,
     if kind != "plan":
         raise ValueError(f"type de message inconnu : {kind!r}")
     page = parse_positions_page(message["frames"])
-    tickers = {h.isin: resolve(h.isin) for h in page.holdings}
     analyses = load_analyses(DEFAULT_PERIOD, now, analyze, root / "results")
-    plan = build_plan(page.holdings, tickers, analyses, page.cash)
-    journal = write_journal(render(plan, f"page Bourse Direct, compte {page.account}", now), page.account, now, root)
+    # Tickers lus sur la page (mnémonique Euronext Paris) : pas de recherche par ISIN
+    plan = build_plan(page.holdings, {}, analyses, page.cash)
+    source = f"page Bourse Direct, {page.account_type} {page.account}"
+    journal = write_journal(render(plan, source, now), page.account, now, root)
     log.info("plan calculé : %d ventes, %d achats", len(plan.sells), len(plan.buys))  # jamais les positions
-    return {"ok": True, "account": page.account, "warning": market_hours_warning(now),
+    return {"ok": True, "account": page.account, "account_type": page.account_type, "warning": market_hours_warning(now),
             "plan": asdict(plan), "journal": str(journal)}
 
 

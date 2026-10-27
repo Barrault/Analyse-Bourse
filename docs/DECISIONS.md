@@ -838,7 +838,18 @@ modifier ce qui suit.*
   fermeture) et dans `journal/` (ignoré par git). Le journal de l'hôte ne contient ni
   positions ni HTML. L'affichage n'utilise que `textContent`.
 - **Décodage en Python** plutôt qu'en JavaScript : il est testé par pytest sur une copie
-  anonymisée de la page, comme le reste du projet.
+  anonymisée de la page (`tests/fixtures/`), comme le reste du projet.
+- **Lecture de la page** (« Mes portefeuilles », application React) :
+  - Repères stables seulement : attributs `data-testid` / `data-prt-column`, classe
+    `position-row`, liens `/api/instrument/redirect/<MIC>/<mnémo>/<devise>`. Les noms de
+    classes CSS, régénérés à chaque déploiement du site, ne sont pas utilisés (sauf le
+    préfixe du nom de titre, avec repli sur le mnémonique).
+  - La page n'affiche pas d'ISIN : ticker Yahoo = mnémonique + `.PA` pour Euronext Paris
+    (`XPAR`, en euros). Autre marché → décision manuelle, comme un titre hors univers.
+  - Espèces = « Disponible au comptant » (tient compte des ordres en cours), et non le solde.
+  - Le sélecteur ne marque pas le compte affiché : on retient la carte dont le nombre
+    d'actifs égale le nombre de lignes affichées. Aucune ou plusieurs → **refus**, car un
+    plan attribué au mauvais compte ferait passer des ordres dans la mauvaise enveloppe.
 - **Écarté** :
   - Porter la stratégie en JavaScript : deux implémentations qui divergeraient, contraire à
     « analyse du jour = stratégie backtestée ».

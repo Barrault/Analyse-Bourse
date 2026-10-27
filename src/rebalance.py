@@ -42,6 +42,7 @@ class Holding:
     price: float      # dernier cours de l'export
     quantity: int
     pru: float        # prix de revient unitaire (frais inclus, selon le courtier)
+    ticker: Optional[str] = None  # ticker Yahoo s'il est connu (page Bourse Direct), sinon via l'ISIN
 
 
 @dataclass
@@ -167,7 +168,7 @@ def build_plan(holdings: List[Holding], tickers: Dict[str, Optional[str]],
     available = cash
 
     for h in holdings:
-        ticker = tickers.get(h.isin)
+        ticker = h.ticker or tickers.get(h.isin)
         line = {"name": h.name, "ticker": ticker, "quantity": h.quantity, "price": h.price, "pru": h.pru,
                 "pnl_pct": (h.price / h.pru - 1) * 100 if h.pru else 0.0}
         if ticker:

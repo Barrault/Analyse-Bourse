@@ -38,7 +38,8 @@ function renderPlan(result) {
   if (!result.ok) { planBox.append(el("p", `Erreur : ${result.error}`, "error")); return; }
   const p = result.plan;
   if (result.warning) planBox.append(el("p", result.warning, "warning"));
-  planBox.append(el("p", `Compte ${result.account} · espèces ${eur(p.cash_start)}`, "muted"));
+  planBox.append(el("h2", `${result.account_type} — ${result.account}`));
+  planBox.append(el("p", `Disponible au comptant : ${eur(p.cash_start)}`, "muted"));
   planBox.append(section("1. Ventes (à passer en premier)", "sells",
     [["Titre"], ["Qté", 1], ["Cours", 1], ["+/- vs PRU", 1], ["Motif"], ["Produit estimé", 1]],
     p.sells.map((s) => [s.name, s.quantity, eur(s.price), pct(s.pnl_pct), s.reason, eur(s.proceeds)]),

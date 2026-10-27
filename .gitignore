@@ -56,3 +56,6 @@ CLAUDE.local.md
 # Hôte natif de l'extension : chemins absolus propres à cette machine
 native_host/
 !extension/manifest.json
+
+# Copies de pages Bourse Direct (données personnelles) : seule une version anonymisée va dans tests/
+/*.html

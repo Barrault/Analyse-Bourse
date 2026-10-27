@@ -33,12 +33,12 @@ def test_ping_and_unknown_message():
 
 
 def test_plan_from_the_page_follows_the_tested_rules(tmp_path, monkeypatch):
-    page = PositionsPage("508TI0EUR", 1500.0, [Holding("BNP", "I1", 100.0, 4, 100.0)])
+    page = PositionsPage("508TI0EUR", "PEA", 1500.0, [Holding("BNP", "", 100.0, 4, 100.0, ticker="BNP.PA")])
     monkeypatch.setattr(native_host, "parse_positions_page", lambda frames: page)
     analyses = {"BNP.PA": signal("VENTE", 100.0), "SAN.PA": signal("ACHAT", 90.0)}
     response = native_host.handle({"type": "plan", "frames": ["<html>"]}, AFTER_CLOSE,
-                                  analyze=lambda t, p: analyses.get(t), resolve=lambda isin: "BNP.PA", root=tmp_path)
-    assert response["ok"] and response["warning"] is None
+                                  analyze=lambda t, p: analyses.get(t), root=tmp_path)
+    assert response["ok"] and response["warning"] is None and response["account_type"] == "PEA"
     assert [s["name"] for s in response["plan"]["sells"]] == ["BNP"]
     assert [b["ticker"] for b in response["plan"]["buys"]] == ["SAN.PA"]
     assert Path(response["journal"]).name == "2026-10-01_508TI0EUR.md"
