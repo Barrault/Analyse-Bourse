@@ -4,7 +4,7 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 identifiants (A1, S2…) renvoient à [docs/AUDIT.md](docs/AUDIT.md) et les choix sont
 justifiés dans [docs/DECISIONS.md](docs/DECISIONS.md).
 
-## [1.6.0] — non publiée — Extension Opera
+## [1.6.0] — 2026-10-27 — Extension Opera
 
 ### Ajouté
 - Extension Opera (`extension/`) : sur Bourse Direct, lit la page des positions et affiche

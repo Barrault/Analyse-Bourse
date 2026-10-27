@@ -45,7 +45,7 @@ python src/run_full_backtest.py
    quantités et montants frais inclus. Il est enregistré dans `journal/`, un fichier par compte (local, non
    versionné) pour suivre la performance réelle face à l'ETF.
 
-### Extension Opera (en cours, DEC-28)
+### Extension Opera (DEC-28)
 
 Sur la page des positions de Bourse Direct, un clic sur l'extension affiche le plan
 d'ordres, sans export xlsx. L'extension ne passe aucun ordre.
