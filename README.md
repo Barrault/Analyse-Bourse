@@ -148,7 +148,11 @@ nomme. Des conseils de calibrage figurent en fin de fichier.
 pip install -r requirements-dev.txt
 pytest              # tests hors réseau, lancés aussi par la CI GitHub Actions
 pytest -m network   # test de bout en bout contre Yahoo Finance
+pytest -m browser   # extension dans Chromium (≈ 2 min) ; une fois : playwright install chromium
 ```
+
+Le test `browser` sert une copie anonymisée de la page Bourse Direct (aucune requête vers le
+site) et passe par le vrai hôte natif : il faut l'avoir installé (`install_native_host.py`).
 
 ## Structure
 

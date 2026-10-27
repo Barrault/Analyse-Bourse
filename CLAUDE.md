@@ -11,6 +11,7 @@ en français (code commenté, docs, échanges).
 pip install -r requirements-dev.txt
 pytest                                   # tests hors réseau (~1 s), à lancer avant chaque commit
 pytest -m network                        # test contre Yahoo, manuel
+pytest -m browser                        # extension dans Chromium (Playwright), manuel, ~1 min 30
 python src/cac40_analyzer.py --period 2y # analyse du jour
 python src/run_full_backtest.py          # backtest ~30 s → logs_results/backtest.log, results/*.json
 python src/calibrate.py {features|calibrate|evaluate|dividend}

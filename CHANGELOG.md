@@ -12,6 +12,9 @@ justifiés dans [docs/DECISIONS.md](docs/DECISIONS.md).
 - Hôte Native Messaging `src/native_host.py`, lancé par le navigateur : même chaîne que
   `rebalance.py`, journal par compte. Installation : `src/install_native_host.py`.
 
+- Test de bout en bout de l'extension dans Chromium (`pytest -m browser`, Playwright) :
+  copie anonymisée de la page, vrai hôte natif, affichage du plan.
+
 ### Modifié
 - Signaux du jour mis en cache dans `results/` (hors séance) : le plan d'un deuxième compte
   est immédiat, en ligne de commande comme depuis l'extension.

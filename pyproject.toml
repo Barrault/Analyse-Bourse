@@ -10,5 +10,6 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 markers = [
     "network: test qui appelle Yahoo Finance (exclu par défaut, lancer avec -m network)",
+    "browser: extension dans Chromium via Playwright, appelle Yahoo (exclu par défaut, lancer avec -m browser)",
 ]
-addopts = "-m 'not network'"
+addopts = "-m 'not network and not browser'"

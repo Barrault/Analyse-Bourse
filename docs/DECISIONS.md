@@ -859,3 +859,8 @@ modifier ce qui suit.*
     JavaScript.
 - **Conséquences** : version de l'extension = version du projet (vérifié par un test).
   L'installation est à refaire si le projet ou le venv est déplacé.
+- **Essais dans Opera** (2026-10-27) : l'icône n'est pas grisée hors de Bourse Direct
+  (`declarativeContent` ne la réactivait pas dans Opera), et le bouton ne dépend pas de
+  l'URL de l'onglet. Hors de la bonne page, c'est la lecture qui échoue, avec un message.
+  Le chemin complet (page → hôte → affichage) est testé dans Chromium avec Playwright
+  (`pytest -m browser`, manuel) : même moteur qu'Opera, même identifiant d'extension.
