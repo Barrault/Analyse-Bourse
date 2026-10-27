@@ -21,6 +21,18 @@ PAGE = (Path(__file__).parent / "fixtures" / "bourse_direct_positions.html").rea
 PAGE_URL = "https://www.boursedirect.fr/fr/mon-compte/portefeuilles"
 FIXTURE_ACCOUNT = "508TI00000000001EUR"
 OTHER_ACCOUNT = "508TI00000000002EUR"
+# Attend le plan d'un compte dans le stockage de session (analyse ≈ 1 min 30 sans cache)
+WAIT_FOR_PLAN = """(account) => new Promise((resolve, reject) => {
+    const started = Date.now();
+    const check = async () => {
+        const { plans = {}, lastError } = await chrome.storage.session.get(['plans', 'lastError']);
+        if (plans[account]) return resolve(plans);
+        if (lastError) return reject(new Error(lastError.error));
+        if (Date.now() - started > 300000) return reject(new Error('pas de plan après 5 min'));
+        setTimeout(check, 1000);
+    };
+    check();
+})"""
 
 
 def serve_fixture(route):
@@ -56,12 +68,18 @@ def test_plan_is_computed_from_the_page_and_displayed(browser_context):
     page.goto(PAGE_URL)
     tab_id = worker.evaluate("async (url) => (await chrome.tabs.query({url}))[0].id", PAGE_URL)
     assert worker.evaluate("(tabId) => displayedAccount(tabId)", tab_id) == FIXTURE_ACCOUNT  # règle de DEC-29
-    # Même chemin que le bouton de la fenêtre : lecture de la page, hôte natif, stockage de session
-    worker.evaluate("(tabId) => analyze(tabId)", tab_id)
+    # Aucun clic : l'arrivée sur la page lance l'analyse du compte affiché (DEC-30)
+    plans = worker.evaluate(WAIT_FOR_PLAN, FIXTURE_ACCOUNT)
     store = worker.evaluate("() => chrome.storage.session.get(['plans', 'running', 'lastError'])")
     assert not store.get("lastError"), store["lastError"]
-    result = store["plans"][FIXTURE_ACCOUNT]["result"]
+    result = plans[FIXTURE_ACCOUNT]["result"]
     assert result["account_type"] == "PEA" and result["plan"]["cash_start"] == 1234.56
+
+    # Nouvelle visite dans la même période : pas de nouvelle analyse
+    page.reload()
+    page.wait_for_timeout(6_000)  # trois relevés du script de contenu
+    store = worker.evaluate("() => chrome.storage.session.get(['plans', 'running'])")
+    assert not store.get("running") and store["plans"][FIXTURE_ACCOUNT]["at"] == plans[FIXTURE_ACCOUNT]["at"]
 
     # Plan d'un deuxième compte, plus récent : chaque compte garde le sien
     other = {**result, "account": OTHER_ACCOUNT, "account_type": "CTO"}
@@ -95,3 +113,16 @@ def test_plan_is_computed_from_the_page_and_displayed(browser_context):
     assert "BNP PARIBAS ACT.A" in text                     # vendue ou conservée selon le signal du jour
     assert "APPLE INC" in text and "hors univers" in text  # marché étranger : décision manuelle
     assert popup.locator("#analyze").is_enabled()
+
+
+@pytest.mark.parametrize("paris_time, phase", [
+    ("2026-10-27T08:59:00+01:00", "2026-10-27 avant-ouverture"),
+    ("2026-10-27T09:00:00+01:00", "2026-10-27 seance"),
+    ("2026-10-27T17:39:00+01:00", "2026-10-27 seance"),
+    ("2026-10-27T17:40:00+01:00", "2026-10-27 apres-cloture"),
+    ("2026-10-31T12:00:00+01:00", "2026-10-31 apres-cloture"),  # samedi
+    ("2026-07-01T07:30:00Z", "2026-07-01 seance"),               # 9 h 30 à Paris (heure d'été)
+])
+def test_one_automatic_analysis_per_market_phase(browser_context, paris_time, phase):
+    worker = browser_context.service_workers[0] if browser_context.service_workers         else browser_context.wait_for_event("serviceworker")
+    assert worker.evaluate("(t) => marketPhase(Date.parse(t))", paris_time) == phase

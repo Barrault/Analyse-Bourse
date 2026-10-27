@@ -4,6 +4,13 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 identifiants (A1, S2…) renvoient à [docs/AUDIT.md](docs/AUDIT.md) et les choix sont
 justifiés dans [docs/DECISIONS.md](docs/DECISIONS.md).
 
+## [1.8.0] — 2026-10-27 — Analyse automatique dans l'extension
+
+### Ajouté
+- Sur « Mes portefeuilles », l'analyse du compte affiché se lance seule, sans clic, une fois
+  par compte et par période de marché (avant 9 h, séance, après la clôture). Changer de
+  compte sur le site lance l'analyse de l'autre compte (DEC-30).
+
 ## [1.7.0] — 2026-10-27 — Un plan par compte dans l'extension
 
 ### Ajouté

@@ -894,3 +894,33 @@ modifier ce qui suit.*
     Python sans action de l'utilisateur (DEC-28 : lecture au clic seulement).
   - Stockage persistant (`storage.local`) : un plan ne vaut que pour la séance où il a été
     calculé, et les positions resteraient sur le disque du profil.
+
+## DEC-30 — Extension : analyse automatique du compte affiché, une fois par période
+
+- **Contexte** : l'utilisateur veut que l'analyse se lance seule sur « Mes portefeuilles »,
+  pour tous ses comptes. La page n'affiche qu'un compte à la fois : lire les autres
+  supposerait que l'extension clique sur le sélecteur de comptes, ou interroge l'API
+  interne du site.
+- **Décision** (choix de l'utilisateur, 2026-10-27) :
+  - Un script de contenu (`content.js`) relève toutes les 2 s le compte affiché, avec la
+    règle de DEC-29. Quand il est stable (deux relevés identiques) et nouveau, il le
+    signale au service worker. Il ne transmet que le n° de compte.
+  - Le service worker lance l'analyse **si ce compte n'a pas de plan dans la période de
+    marché en cours** (heure de Paris : avant 9 h, séance jusqu'à 17 h 40 les jours
+    ouvrés, après la clôture), comme le cache des signaux en Python. Revenir sur la page
+    affiche donc le plan déjà calculé. Le bouton force toujours une nouvelle analyse.
+  - Une analyse à la fois. Un compte signalé pendant une analyse est mis en attente et
+    traité ensuite : passer du PEA au CTO pendant l'analyse du PEA suffit.
+  - Un échec n'est pas relancé en boucle : le compte n'est signalé qu'une fois par
+    affichage. Une nouvelle tentative a lieu au prochain changement de compte ou au
+    rechargement de la page.
+- **Révision de DEC-28** : la page est désormais lue sans clic, mais seulement sur
+  `*.boursedirect.fr`, quand « Mes portefeuilles » est affiché. L'extension reste en lecture
+  seule : elle ne clique sur rien, ne remplit rien et ne passe aucun ordre.
+- **Écarté** :
+  - Afficher chaque compte en cliquant sur le sélecteur : l'extension agirait sur
+    l'interface du site, qu'une mise à jour de Bourse Direct pourrait faire dérailler.
+  - Appeler l'API interne de Bourse Direct : requêtes non documentées vers le site, avec la
+    session de l'utilisateur.
+  - Relancer à chaque visite : en séance, sans cache, chaque analyse prend ≈ 1 min 30 et
+    télécharge les cours des 96 valeurs.

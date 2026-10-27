@@ -99,7 +99,8 @@ function render() {
     planBox.append(el("p", `Dernière analyse en échec (${hhmm(store.lastError.at)}) : ${store.lastError.error}`, "error"));
   }
   if (running) {
-    statusLine.textContent = `Analyse en cours depuis ${hhmm(store.running.at)}… (≈ 1 min 30 la première fois de la journée)`;
+    const which = store.running.account ? ` du compte ${store.running.account}` : "";
+    statusLine.textContent = `Analyse${which} en cours depuis ${hhmm(store.running.at)}… (≈ 1 min 30 sans cache)`;
   } else if (store.running) {
     statusLine.textContent = `Analyse lancée à ${hhmm(store.running.at)} interrompue : relancer.`;
   } else if (displayed && !plans[displayed]) {
