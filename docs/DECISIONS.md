@@ -947,3 +947,22 @@ modifier ce qui suit.*
   vers Yahoo.
 - **Format du cache** : `{"computed_at", "signals"}`. Un fichier à l'ancien format est
   recalculé.
+
+## DEC-32 — Extension : tous les signaux ACHAT, au-delà du solde disponible
+
+- **Contexte** : le plan ne montrait que les achats financés par les espèces du compte. Les
+  autres signaux ACHAT tenaient en une ligne de noms. L'utilisateur veut les voir tous, pour
+  décider s'il apporte des fonds.
+- **Décision** :
+  - Le tableau des achats liste **tous les signaux ACHAT par priorité** (confiance, puis
+    score technique) : d'abord les lignes financées, qui forment le plan de la stratégie,
+    puis les autres, grisées, avec le motif (trésorerie insuffisante, ou une action plus
+    chère que le montant par ligne).
+  - Les lignes non financées sont chiffrées au montant standard (`trading.order_amount`,
+    au moins une action, frais inclus). Un total indique ce qu'il faudrait en plus pour
+    tout acheter.
+- **Invariant préservé** : `build_plan` applique les mêmes règles. Les lignes non financées
+  sont de l'information, elles ne modifient ni la trésorerie ni l'ordre de priorité.
+  L'extension rappelle que le backtest n'achète que les lignes financées.
+- **Écarté** : ignorer le solde dans le plan. Le plan ne serait plus celui de la stratégie
+  backtestée, qui achète dans la limite des espèces.
