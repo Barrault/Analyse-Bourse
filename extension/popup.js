@@ -4,6 +4,7 @@ const button = document.getElementById("analyze");
 const statusLine = document.getElementById("status");
 const planBox = document.getElementById("plan");
 let tabId = null;
+const STALE_MS = 5 * 60 * 1000;  // une analyse « en cours » plus ancienne a été interrompue
 
 const eur = (x) => x.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 const pct = (x) => `${x >= 0 ? "+" : ""}${x.toFixed(1).replace(".", ",")} %`;
@@ -63,14 +64,15 @@ function renderPlan(result) {
 }
 
 function show(state) {
+  const running = state?.status === "running" && Date.now() - state.at < STALE_MS;
+  button.disabled = running || tabId === null;  // y compris au premier usage, sans plan précédent
   if (!state) { statusLine.textContent = "Ouvrez la page de vos positions, puis lancez l'analyse."; return; }
   const when = new Date(state.at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-  if (state.status === "running") {
-    button.disabled = true;
+  if (running) {
     statusLine.textContent = `Analyse en cours depuis ${when}… (≈ 1 min la première fois de la journée)`;
     return;
   }
-  button.disabled = tabId === null;
+  if (state.status === "running") { statusLine.textContent = `Analyse lancée à ${when} interrompue : relancer.`; return; }
   statusLine.textContent = `Plan calculé à ${when}.`;
   renderPlan(state.result);
 }
@@ -79,12 +81,20 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "session" && changes.state) show(changes.state.newValue);
 });
 
-button.addEventListener("click", () => chrome.runtime.sendMessage({ type: "analyze", tabId }));
+button.addEventListener("click", () => {
+  button.disabled = true;
+  statusLine.textContent = "Lecture de la page…";
+  chrome.runtime.sendMessage({ type: "analyze", tabId })
+    .catch((error) => { statusLine.textContent = `Erreur : ${error.message}`; button.disabled = false; });
+});
 
 chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
-  // Sans permission « tabs », l'URL n'est visible que sur les sites autorisés (Bourse Direct)
-  tabId = tab?.url && new URL(tab.url).hostname.endsWith("boursedirect.fr") ? tab.id : null;
+  // Le bouton ne dépend pas de l'URL (Opera ne la donne pas toujours) : hors de Bourse Direct,
+  // la lecture de la page échoue avec un message explicite.
+  tabId = tab?.id ?? null;
   const { state } = await chrome.storage.session.get("state");
   show(state);
-  if (tabId === null) statusLine.textContent = "Cette extension ne fonctionne que sur boursedirect.fr.";
+  if (tab?.url && !new URL(tab.url).hostname.endsWith("boursedirect.fr")) {
+    statusLine.textContent = "Cette extension ne fonctionne que sur boursedirect.fr.";
+  }
 });

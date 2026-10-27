@@ -2,17 +2,10 @@
 // Lecture seule : aucun clic, aucune saisie, aucun ordre. Seul interlocuteur : l'hôte natif local.
 const HOST = "fr.analyse_boursiere.rebalance";
 
-// Icône active seulement sur Bourse Direct
-chrome.runtime.onInstalled.addListener(() => {
-  if (!chrome.declarativeContent) return;
-  chrome.action.disable();
-  chrome.declarativeContent.onPageChanged.removeRules(undefined, () => {
-    chrome.declarativeContent.onPageChanged.addRules([{
-      conditions: [new chrome.declarativeContent.PageStateMatcher({ pageUrl: { hostSuffix: "boursedirect.fr" } })],
-      actions: [new chrome.declarativeContent.ShowAction()],
-    }]);
-  });
-});
+// Une première version désactivait l'icône hors de Bourse Direct (declarativeContent), ce
+// qu'Opera n'applique pas : état et règles persistent, on les annule.
+chrome.action.enable();
+chrome.runtime.onInstalled.addListener(() => chrome.declarativeContent?.onPageChanged.removeRules());
 
 // Un port ouvert garde le service worker en vie pendant l'analyse (≈ 1 min sans cache)
 function askHost(message) {
