@@ -86,6 +86,8 @@ poids nul : elles n'ont montré aucun effet mesurable sur 2017-2021 (DEC-19).
   décision, faute d'historique pour les tester (DEC-24). Le dividende, seul testable, a
   changé d'effet selon les périodes (DEC-23). **Une seule exception** : pas d'ACHAT sur
   une entreprise en perte (`fundamentals.exclude_loss_making`).
+- 🏷️ **Bon marché** : PE < 12, P/B < 1,2 et cours > SMA200, marqué dans l'extension,
+  le journal et l'analyse du jour ; information seulement (DEC-34).
 - **Confiance = probabilité historique de battre le CAC 40 à 3 mois** pour ce niveau de
   score technique : p pour un ACHAT, 1 − p pour une VENTE. Elle est calibrée sur
   2017-2021 et vérifiée sur 2022-2026. Elle va de 44 % à 49 %, pour une moyenne de 47 % :

@@ -48,6 +48,9 @@ function section(title, className, headers, rows, empty) {
   return box;
 }
 
+// Marqueur « bon marché » calculé en Python (DEC-34) : information seulement, aucun effet sur le plan
+const cheap = (line) => (line.cheap ? " 🏷️" : "");
+
 function renderPlan(result) {
   const p = result.plan;
   if (result.warning) planBox.append(el("p", result.warning, "warning"));
@@ -68,7 +71,7 @@ function renderPlan(result) {
   const headers = [["#", 1], ["Titre"], ["Cours", 1], ["Score tech.", 1]];
   if (!sameConfidence) headers.push(["Confiance", 1]);
   const box = section("2. Signaux ACHAT (par priorité)", "buys", headers,
-    signals.map((b, i) => [i + 1, `${b.name} (${b.ticker})`, eur(b.price),
+    signals.map((b, i) => [i + 1, `${b.name} (${b.ticker})${cheap(b)}`, eur(b.price),
                            `${b.technical_score >= 0 ? "+" : ""}${b.technical_score.toFixed(1).replace(".", ",")}`,
                            ...(sameConfidence ? [] : [share(b.confidence)])]),
     "Aucun signal ACHAT.");
@@ -78,7 +81,11 @@ function renderPlan(result) {
   }
   planBox.append(box);
   planBox.append(section("3. Positions conservées", "", [["Titre"], ["Signal"], ["+/- vs PRU", 1]],
-    p.keeps.map((k) => [k.name, k.recommendation, pct(k.pnl_pct)]), "Aucune."));
+    p.keeps.map((k) => [`${k.name}${cheap(k)}`, k.recommendation, pct(k.pnl_pct)]), "Aucune."));
+  if ([...signals, ...p.keeps].some((line) => line.cheap)) {
+    planBox.append(el("p", "🏷️ bon marché : PE et P/B bas, cours au-dessus de sa moyenne 200 jours " +
+      "(information, sans effet sur le plan).", "muted"));
+  }
   if (p.manual.length) {
     planBox.append(section("4. Hors stratégie (décision manuelle)", "", [["Titre"], ["Motif"], ["+/- vs PRU", 1]],
       p.manual.map((m) => [m.name, m.reason, pct(m.pnl_pct)]), ""));

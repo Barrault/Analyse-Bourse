@@ -984,3 +984,18 @@ modifier ce qui suit.*
   même plan (signaux en cache, DEC-31) : peu utile.
 - **Conséquence** : la fenêtre ne fait plus qu'afficher. Même règle qu'avant : aucune
   stratégie en JS (DEC-28).
+
+## DEC-34 — Marqueur « bon marché », information seulement
+
+- **Contexte** : avant DEC-24, la règle `cheap_with_growth` (« décote cohérente », DEC-06)
+  ajoutait 1,5 point au score d'un titre à PE < 12, P/B < 1,2 et cours > SMA200.
+  L'utilisateur veut retrouver cette information dans le tableau de recommandation.
+- **Décision** : `compute_score` renvoie `cheap` selon la même règle (seuils
+  `fundamentals.cheap_pe` / `cheap_pb`), hors entreprise en perte, comme avant. Affiché par
+  🏷️ dans l'extension (signaux ACHAT, positions conservées), le journal et l'analyse du jour.
+  Le cache des signaux sans ce champ est recalculé.
+- **Écarté** : lui rendre un poids ou s'en servir pour départager les ACHAT. Non testable
+  sans historique de fondamentaux (DEC-23, DEC-24) : l'analyse du jour doit rester la
+  stratégie backtestée.
+- **Conséquence** : aucun effet sur la décision, l'ordre de priorité ni la confiance (test
+  dédié). Mêmes limites que les fondamentaux affichés : valeurs Yahoo du jour, non vérifiées.

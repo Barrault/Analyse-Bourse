@@ -141,8 +141,8 @@ def signals_cache_path(cache_dir: Path, period: str, now: datetime) -> Path:
 def cache_is_fresh(cached: dict, now: datetime) -> bool:
     """Hors séance, valable pour toute la période ; en séance, les cours bougent : signaux
     réutilisés pendant `trading.rebalance.session_cache_minutes` seulement (DEC-31)."""
-    if "signals" not in cached:
-        return False  # ancien format, sans date de calcul
+    if "signals" not in cached or any("cheap" not in s for s in cached["signals"].values()):
+        return False  # ancien format, sans date de calcul ou sans marqueur bon marché (DEC-34)
     if not market_hours_warning(now):
         return True
     age = now - datetime.fromisoformat(cached["computed_at"])
@@ -163,7 +163,8 @@ def load_analyses(period: str, now: datetime, analyze: Callable = analyze_ticker
     if path:
         path.parent.mkdir(exist_ok=True)
         signals = {t: {"recommendation": o["recommendation"], "confidence": float(o["confidence"]),
-                       "technical_score": float(o["technical_score"]), "close": float(s.close)}
+                       "technical_score": float(o["technical_score"]), "cheap": bool(o["cheap"]),
+                       "close": float(s.close)}
                    for t, (o, s) in analyses.items()}
         path.write_text(json.dumps({"computed_at": now.isoformat(), "signals": signals}), encoding="utf-8")
     return analyses
@@ -193,7 +194,8 @@ def build_plan(holdings: List[Holding], tickers: Dict[str, Optional[str]],
             plan.manual.append(line)
             continue
         outcome, _ = analyses[ticker]
-        line.update(recommendation=outcome["recommendation"], technical_score=outcome["technical_score"])
+        line.update(recommendation=outcome["recommendation"], technical_score=outcome["technical_score"],
+                    cheap=outcome["cheap"])
         stop_hit = stop_loss_pct is not None and h.price <= h.pru * (1 - stop_loss_pct / 100)
         if outcome["recommendation"] == "VENTE" or stop_hit:
             gross = h.quantity * h.price
@@ -210,7 +212,8 @@ def build_plan(holdings: List[Holding], tickers: Dict[str, Optional[str]],
         key=lambda x: (x[1]["confidence"], x[1]["technical_score"]), reverse=True)
     for ticker, outcome, snap in candidates:
         line = {"name": NOMS_ENTREPRISES.get(ticker, ticker), "ticker": ticker, "price": snap.close,
-                "confidence": outcome["confidence"], "technical_score": outcome["technical_score"]}
+                "confidence": outcome["confidence"], "technical_score": outcome["technical_score"],
+                "cheap": outcome["cheap"]}
         budget = min(order_amount(), available - margin_buffer)
         if budget < min_order:
             plan.skipped_buys.append({**line, "reason": "trésorerie insuffisante"})
@@ -237,6 +240,9 @@ def market_hours_warning(now: datetime) -> Optional[str]:
     return None
 
 
+CHEAP = " 🏷️"  # titre bon marché (PE et P/B bas, cours > SMA200), information seulement (DEC-34)
+
+
 def render(plan: Plan, source: str, now: datetime) -> str:
     out = [f"# Plan de rebalance — {now:%d/%m/%Y %H:%M}", "",
            f"Source : {source} · Cash déclaré : {plan.cash_start:,.2f} €", ""]
@@ -251,14 +257,17 @@ def render(plan: Plan, source: str, now: datetime) -> str:
 
     out += ["", "## 2. Achats (par ordre de priorité)", ""]
     out += ["| # | Titre | Qté | Cours | Montant frais inclus | Confiance | Score tech. |", "|---:|---|---:|---:|---:|---:|---:|"]
-    out += [f"| {i} | {b['name']} ({b['ticker']}) | {b['quantity']} | {b['price']:.2f} € | {b['cost']:,.2f} € | "
+    out += [f"| {i} | {b['name']} ({b['ticker']}){CHEAP * b['cheap']} | {b['quantity']} | {b['price']:.2f} € | {b['cost']:,.2f} € | "
             f"{b['confidence']:.1%} | {b['technical_score']:+.1f} |" for i, b in enumerate(plan.buys, 1)] \
         or ["| | aucun achat | | | | | |"]
     if plan.skipped_buys:
-        out += ["", "ACHAT non servis : " + ", ".join(f"{b['name']} ({b['reason']})" for b in plan.skipped_buys)]
+        out += ["", "ACHAT non servis : " + ", ".join(f"{b['name']}{CHEAP * b['cheap']} ({b['reason']})" for b in plan.skipped_buys)]
+    if any(line["cheap"] for line in plan.buys + plan.skipped_buys + plan.keeps):
+        out += ["", f"🏷️ bon marché : PE < {config.get('fundamentals.cheap_pe')}, P/B < {config.get('fundamentals.cheap_pb')} "
+                "et cours > SMA200 (information, sans effet sur le plan)."]
 
     out += ["", "## 3. Positions conservées", ""]
-    out += [f"- {k['name']} : {k['recommendation']}, {k['pnl_pct']:+.1f} % vs PRU" for k in plan.keeps] or ["- aucune"]
+    out += [f"- {k['name']}{CHEAP * k['cheap']} : {k['recommendation']}, {k['pnl_pct']:+.1f} % vs PRU" for k in plan.keeps] or ["- aucune"]
     if plan.manual:
         out += ["", "## 4. Hors stratégie (décision manuelle)", ""]
         out += [f"- {m['name']} ({m['ticker'] or 'ticker introuvable'}) : {m['reason']}, "

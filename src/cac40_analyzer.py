@@ -296,6 +296,11 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
             return "n.d." if value is None else f"{value:.1f}{suffix}"
         reasons.append(f"* Fondamentaux (information, sans effet sur la décision) : PE {fmt(pe)} | "
                        f"P/B {fmt(pb)} | dividende {fmt(dy, ' %')}")
+    # Ancienne « décote cohérente » (DEC-06), affichée sans effet sur la décision (DEC-34)
+    cheap = (not loss_making and pe is not None and pb is not None and s.close > s.sma200
+             and pe < config.get('fundamentals.cheap_pe') and pb < config.get('fundamentals.cheap_pb'))
+    if cheap:
+        reasons.append(f"* 🏷️ Bon marché (information) : PE {pe:.1f} et P/B {pb:.1f} bas, cours au-dessus de la SMA200.")
 
     # Confiance = probabilité mesurée que la recommandation soit dans le bon sens (DEC-20) :
     # battre le CAC 40 à 3 mois pour un ACHAT (ou un NEUTRE), le sous-performer pour une VENTE.
@@ -314,6 +319,7 @@ def compute_score(s: IndicatorSnapshot) -> Dict[str, Any]:
         "recommendation": rec,
         "confidence": round(confidence, 3),
         "p_outperform": p_outperform,
+        "cheap": cheap,
         "suggested_amount": suggested_amount,
         "reasons": reasons
     }

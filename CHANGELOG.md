@@ -4,6 +4,14 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 identifiants (A1, S2…) renvoient à [docs/AUDIT.md](docs/AUDIT.md) et les choix sont
 justifiés dans [docs/DECISIONS.md](docs/DECISIONS.md).
 
+## [1.11.0] — 2026-10-30 — Marqueur « bon marché »
+
+### Ajouté
+- 🏷️ à côté des titres bon marché (PE < 12, P/B < 1,2, cours > SMA200, entreprise
+  rentable : l'ancienne « décote cohérente » de DEC-06) dans l'extension, le journal de
+  rebalance et l'analyse du jour. Information seulement : décision, ordre et confiance
+  inchangés (DEC-34).
+
 ## [1.10.0] — 2026-10-28 — Nouveau style de l'extension
 
 ### Modifié

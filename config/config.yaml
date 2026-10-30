@@ -97,6 +97,10 @@ scoring:
 # Ils sont affichés pour information ; seul ce filtre de prudence agit sur la décision.
 fundamentals:
   exclude_loss_making: true   # Pas d'ACHAT si le BPA est négatif (l'ACHAT devient NEUTRE)
+  # Marqueur « bon marché » 🏷️, information seulement (DEC-34) : ancienne règle
+  # « décote cohérente » (DEC-06) = PE < cheap_pe ET P/B < cheap_pb ET cours > SMA200
+  cheap_pe: 12
+  cheap_pb: 1.2
 
 # ============================== TRADING PARAMETERS ==============================
 trading:

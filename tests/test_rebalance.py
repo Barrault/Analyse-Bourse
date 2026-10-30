@@ -56,8 +56,9 @@ def test_only_accounts_exported_on_the_latest_date_are_kept(tmp_path):
                                                                 "PEA0EUR-02_10_2026 07_00_00.xlsx"]
 
 
-def signal(recommendation, close, confidence=0.493, technical=5.5):
-    return ({"recommendation": recommendation, "confidence": confidence, "technical_score": technical},
+def signal(recommendation, close, confidence=0.493, technical=5.5, cheap=False):
+    return ({"recommendation": recommendation, "confidence": confidence, "technical_score": technical,
+             "cheap": cheap},
             SimpleNamespace(close=close))
 
 
@@ -83,6 +84,14 @@ def test_plan_applies_the_tested_rules():
     assert plan.buys[0]["quantity"] == 11 and plan.buys[0]["cost"] <= 1000
     assert "dépasse le budget" in plan.skipped_buys[0]["reason"]  # Hermès à 2 100 €
     assert plan.cash_end >= 200 - 1e-9                            # réserve préservée
+
+
+def test_cheap_marker_is_shown_without_changing_the_plan():
+    analyses = {"AC.PA": signal("ACHAT", 40.0, technical=4.5, cheap=True), "SAN.PA": signal("ACHAT", 90.0, technical=6.5)}
+    plan = build_plan([], {}, analyses, cash=3000.0)
+    assert [(b["ticker"], b["cheap"]) for b in plan.buys] == [("SAN.PA", False), ("AC.PA", True)]  # ordre inchangé
+    report = rebalance.render(plan, "test", datetime(2026, 10, 1, 8, 30))
+    assert "(AC.PA) 🏷️" in report and "(SAN.PA) 🏷️" not in report and "🏷️ bon marché" in report
 
 
 def test_buys_stop_when_cash_runs_out():

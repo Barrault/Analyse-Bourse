@@ -12,6 +12,16 @@ def test_fundamentals_do_not_change_score_nor_recommendation(snapshot):
     assert any("PE 3.3 | P/B 0.4 | dividende 9.0 %" in r for r in cheap["reasons"])
 
 
+def test_cheap_marker_is_the_former_coherent_discount_rule(snapshot):
+    # PE < 12, P/B < 1,2, cours > SMA200, entreprise rentable (DEC-06) ; information seule (DEC-34)
+    assert compute_score(snapshot(pe=8.0, pb=0.9, eps=5.0))["cheap"]
+    assert not compute_score(snapshot(pe=13.0, pb=0.9, eps=5.0))["cheap"]
+    assert not compute_score(snapshot(pe=8.0, pb=1.3, eps=5.0))["cheap"]
+    assert not compute_score(snapshot(pe=8.0, pb=0.9, eps=5.0, bullish=False))["cheap"]  # sous la SMA200
+    assert not compute_score(snapshot(pe=None, pb=0.5, eps=-11.0))["cheap"]               # en perte
+    assert not compute_score(snapshot(pe=None, pb=None))["cheap"]
+
+
 def test_loss_making_company_buy_is_filtered_out(snapshot):
     outcome = compute_score(snapshot(pe=None, pb=0.5, eps=-11.0))
     assert outcome["recommendation"] == "NEUTRE"
