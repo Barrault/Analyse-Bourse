@@ -1,5 +1,5 @@
-// Service worker : lit la page Bourse Direct et interroge l'hôte Python (DEC-28), au clic ou
-// automatiquement sur « Mes portefeuilles » (DEC-30). Lecture seule : aucun clic, aucune
+// Service worker : lit la page Bourse Direct et interroge l'hôte Python (DEC-28),
+// automatiquement sur « Mes portefeuilles » (DEC-30, sans bouton depuis DEC-33). Lecture seule : aucun clic, aucune
 // saisie, aucun ordre. Seul interlocuteur : l'hôte natif local.
 importScripts("page_account.js");  // displayedAccountInPage, marketPhase
 
@@ -49,7 +49,7 @@ async function readPage(tabId) {
 
 // frames : copie de la page déjà prise (compte en file d'attente), sinon lue maintenant
 async function analyze(tabId, account = null, frames = null) {
-  if (busy !== null) return;  // une seule analyse à la fois (le bouton est grisé pendant ce temps)
+  if (busy !== null) return;  // une seule analyse à la fois
   busy = account ?? "";
   await chrome.storage.session.set({ running: { at: Date.now(), account } });
   let result;
@@ -95,7 +95,6 @@ async function autoAnalyze(tabId, account) {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) return;
-  if (message.type === "analyze") analyze(message.tabId);
   if (message.type === "page-account" && sender.tab) autoAnalyze(sender.tab.id, message.account);
   if (message.type === "displayed-account") {
     displayedAccount(message.tabId).then(sendResponse);

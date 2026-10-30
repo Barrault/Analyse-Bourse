@@ -1,22 +1,92 @@
-:root { --accent: #0b57d0; --fg: #1d1d1f; --muted: #6e6e73; --line: #d2d2d7; --sell: #b3261e; --buy: #1b6e3a; --warn: #fff4ce; --bg: #fff; }
-@media (prefers-color-scheme: dark) {
-  :root { --fg: #f5f5f7; --muted: #a1a1a6; --line: #3a3a3c; --sell: #ff8a80; --buy: #7ddc9a; --warn: #4a3f10; --bg: #1c1c1e; --accent: #8ab4f8; }
+/* Charte inspirée de Bourse Direct : bleu marine, orange pour l'action, fond bleu très clair */
+:root {
+  --navy: #003b79; --blue: #1f71b2; --accent: #f28f01; --accent-hover: #d97f00;
+  --fg: #1c2b3a; --muted: #6b7a8c; --line: #e3eaf3; --bg: #eef3fa; --card: #fff;
+  --sell: #d6203f; --sell-bg: #fde8ec; --buy: #1e8e5a; --buy-bg: #e3f5ec;
+  --neutral-bg: #edf1f6; --warn: #fff4e0; --head: #f6f9fd;
 }
-body { width: 620px; margin: 0; padding: 12px 16px; font: 13px/1.4 system-ui, sans-serif; color: var(--fg); background: var(--bg); }
-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-h1 { font-size: 16px; margin: 0; }
-h2 { font-size: 14px; margin: 16px 0 6px; }
-button { padding: 6px 12px; font: inherit; cursor: pointer; }
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fg: #e6edf5; --muted: #95a3b5; --line: #263548; --bg: #0e1724; --card: #16212f;
+    --sell: #ff7a8f; --sell-bg: #3a1b24; --buy: #5fd39a; --buy-bg: #15342a;
+    --neutral-bg: #222f40; --warn: #3a2c12; --head: #1b2737;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  width: 640px; margin: 0; color: var(--fg); background: var(--bg);
+  font: 13px/1.45 Roboto, "Segoe UI", system-ui, sans-serif;
+}
+
+header {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 14px 16px; color: #fff;
+  background: linear-gradient(120deg, var(--navy), var(--blue));
+}
+h1 { font-size: 17px; font-weight: 500; margin: 0; letter-spacing: .2px; }
+h1::before { content: ""; display: inline-block; width: 4px; height: 16px; margin-right: 8px;
+  vertical-align: -2px; border-radius: 2px; background: var(--accent); }
+
+button { font: inherit; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+nav#accounts, #status, main, footer { margin-left: 16px; margin-right: 16px; }
+nav#accounts {
+  display: inline-flex; gap: 2px; margin-top: 12px; padding: 3px;
+  border-radius: 20px; background: var(--card); box-shadow: 0 1px 2px rgb(0 0 0 / .08);
+}
+nav#accounts:empty { display: none; }
+nav#accounts button {
+  padding: 5px 14px; border: 0; border-radius: 16px; background: none; color: var(--muted);
+}
+nav#accounts button:hover { color: var(--fg); }
+nav#accounts button.selected { background: var(--navy); color: #fff; font-weight: 500; }
+@media (prefers-color-scheme: dark) { nav#accounts button.selected { background: var(--blue); } }
+
+#status { margin-top: 10px; margin-bottom: 0; }
+#status:empty { display: none; }
 .muted { color: var(--muted); }
-.warning { background: var(--warn); padding: 8px; border-radius: 4px; }
-.error { color: var(--sell); }
-table { width: 100%; border-collapse: collapse; }
-th, td { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: left; }
-td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+main > p { margin: 8px 0; }
+
+/* Titre du compte : bandeau type « carte » */
+main > h2 {
+  margin: 12px 0 0; padding: 12px 14px 4px; font-size: 15px; font-weight: 500;
+  background: var(--card); border-radius: 10px 10px 0 0; color: var(--navy);
+}
+@media (prefers-color-scheme: dark) { main > h2 { color: #8ab8f0; } }
+main > h2 + p { margin-top: 0; padding: 0 14px 12px; background: var(--card); border-radius: 0 0 10px 10px; }
+
+section {
+  margin-top: 12px; padding: 12px 14px; background: var(--card); border-radius: 10px;
+  box-shadow: 0 1px 3px rgb(0 40 100 / .08); border-left: 4px solid var(--line);
+}
+section.sells { border-left-color: var(--sell); }
+section.buys { border-left-color: var(--buy); }
+section h2 { font-size: 14px; font-weight: 500; margin: 0 0 8px; }
 .sells h2 { color: var(--sell); }
 .buys h2 { color: var(--buy); }
-footer { margin-top: 16px; font-size: 12px; }
-nav#accounts { display: flex; gap: 6px; margin-top: 10px; }
-nav#accounts:empty { display: none; }
-nav#accounts button { padding: 4px 10px; border: 1px solid var(--line); border-radius: 14px; background: none; color: var(--fg); }
-nav#accounts button.selected { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+section > p { margin: 0 0 8px; }
+
+table { width: 100%; border-collapse: collapse; }
+th {
+  padding: 6px 8px; text-align: left; font-size: 11px; font-weight: 500; text-transform: uppercase;
+  letter-spacing: .4px; color: var(--muted); background: var(--head);
+}
+th:first-child { border-radius: 6px 0 0 6px; }
+th:last-child { border-radius: 0 6px 6px 0; }
+td { padding: 7px 8px; border-bottom: 1px solid var(--line); text-align: left; }
+tr:last-child td { border-bottom: 0; }
+tr:hover td { background: var(--head); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.pos { color: var(--buy); font-weight: 500; }
+td.neg { color: var(--sell); font-weight: 500; }
+td.tag span { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; background: var(--neutral-bg); }
+td.tag-achat span { color: var(--buy); background: var(--buy-bg); }
+td.tag-vente span { color: var(--sell); background: var(--sell-bg); }
+
+.warning { margin: 12px 0 0; padding: 10px 12px; border-radius: 8px; border-left: 4px solid var(--accent); background: var(--warn); }
+.error { margin: 12px 0 0; padding: 10px 12px; border-radius: 8px; color: var(--sell); background: var(--sell-bg); }
+
+footer {
+  margin-top: 14px; padding: 10px 0 14px; font-size: 11.5px; border-top: 1px solid var(--line);
+}

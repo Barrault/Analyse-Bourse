@@ -49,8 +49,8 @@ python src/run_full_backtest.py
 
 Sur « Mes portefeuilles » de Bourse Direct, l'extension analyse seule le compte affiché, une
 fois par période de marché (avant 9 h, séance, après la clôture), puis l'autre compte quand
-on le sélectionne. Un clic sur son icône affiche le plan d'ordres ; le bouton force une
-nouvelle analyse. L'extension ne passe aucun ordre.
+on le sélectionne. Un clic sur son icône affiche le plan d'ordres (pas d'analyse manuelle,
+DEC-33). L'extension ne passe aucun ordre.
 
 1. Opera → `opera://extensions` → mode développeur → « Charger l'extension non empaquetée »
    → dossier `extension/`. Noter l'identifiant affiché.

@@ -125,7 +125,7 @@ def test_plan_is_computed_from_the_page_and_displayed(browser_context):
     assert "Montant" not in text and "après achats" not in text  # aucun montant d'achat suggéré (DEC-32)
     assert "BNP PARIBAS ACT.A" in text                     # vendue ou conservée selon le signal du jour
     assert "APPLE INC" in text and "hors univers" in text  # marché étranger : décision manuelle
-    assert popup.locator("#analyze").is_enabled()
+    assert popup.locator("#analyze").count() == 0  # analyse automatique seulement (DEC-33)
 
 
 @pytest.mark.parametrize("paris_time, phase", [

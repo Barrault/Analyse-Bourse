@@ -1,6 +1,5 @@
 // Affichage du plan renvoyé par l'hôte Python (DEC-28). Tout passe par textContent : un nom
 // de titre venant de la page ne peut pas injecter de HTML.
-const button = document.getElementById("analyze");
 const statusLine = document.getElementById("status");
 const planBox = document.getElementById("plan");
 const accountsBar = document.getElementById("accounts");
@@ -31,7 +30,18 @@ function section(title, className, headers, rows, empty) {
   table.append(head);
   rows.forEach((cells) => {
     const tr = el("tr");
-    cells.forEach((cell, i) => tr.append(el("td", String(cell), headers[i][1] ? "num" : "")));
+    cells.forEach((cell, i) => {
+      const text = String(cell);
+      // Purement visuel : variations colorées selon le signe, signal affiché en pastille
+      if (["ACHAT", "NEUTRE", "VENTE"].includes(text)) {
+        const td = el("td", undefined, `tag tag-${text.toLowerCase()}`);
+        td.append(el("span", text));
+        tr.append(td);
+        return;
+      }
+      const sign = /^\+/.test(text) ? " pos" : /^-/.test(text) ? " neg" : "";
+      tr.append(el("td", text, (headers[i][1] ? "num" : "") + (headers[i][1] ? sign : "")));
+    });
     table.append(tr);
   });
   box.append(table);
@@ -94,7 +104,6 @@ function defaultSelection() {
 function render() {
   const plans = store.plans || {};
   const running = store.running && Date.now() - store.running.at < STALE_MS;
-  button.disabled = running || tabId === null;
 
   accountsBar.replaceChildren();
   Object.entries(plans).sort((a, b) => a[1].result.account_type.localeCompare(b[1].result.account_type))
@@ -114,17 +123,17 @@ function render() {
     const which = store.running.account ? ` du compte ${store.running.account}` : "";
     statusLine.textContent = `Analyse${which} en cours depuis ${hhmm(store.running.at)}… (≈ 1 min 30 sans cache)`;
   } else if (store.running) {
-    statusLine.textContent = `Analyse lancée à ${hhmm(store.running.at)} interrompue : relancer.`;
+    statusLine.textContent = `Analyse lancée à ${hhmm(store.running.at)} interrompue : recharger la page Bourse Direct.`;
   } else if (displayed && !plans[displayed]) {
-    statusLine.textContent = `Le compte affiché (${displayed}) n'a pas encore été analysé.`;
+    statusLine.textContent = `Le compte affiché (${displayed}) n'a pas encore été analysé : analyse automatique en attente.`;
   } else if (!selected) {
-    statusLine.textContent = "Ouvrez la page de vos positions, puis lancez l'analyse.";
+    statusLine.textContent = "Ouvrez « Mes portefeuilles » sur Bourse Direct : l'analyse se lance seule.";
   } else {
     statusLine.textContent = selected === displayed ? "Plan du compte affiché sur la page."
       : displayed ? "Attention : ce plan n'est pas celui du compte affiché sur la page." : "";
   }
   if (selected && plans[selected]) {
-    planBox.append(el("p", `Calculé à ${hhmm(plans[selected].at)} ; relancer l'analyse pour l'actualiser.`, "muted"));
+    planBox.append(el("p", `Calculé à ${hhmm(plans[selected].at)} ; recalculé à la prochaine période de marché (avant 9 h, séance, après la clôture).`, "muted"));
     renderPlan(plans[selected].result);
   }
 }
@@ -140,16 +149,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   render();
 });
 
-button.addEventListener("click", () => {
-  button.disabled = true;
-  statusLine.textContent = "Lecture de la page…";
-  chrome.runtime.sendMessage({ type: "analyze", tabId })
-    .catch((error) => { statusLine.textContent = `Erreur : ${error.message}`; button.disabled = false; });
-});
-
 chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
-  // Le bouton ne dépend pas de l'URL (Opera ne la donne pas toujours) : hors de Bourse Direct,
-  // la lecture de la page échoue avec un message explicite.
   tabId = tab?.id ?? null;
   store = await chrome.storage.session.get(["plans", "running", "lastError"]);
   if (tabId !== null) displayed = await chrome.runtime.sendMessage({ type: "displayed-account", tabId });

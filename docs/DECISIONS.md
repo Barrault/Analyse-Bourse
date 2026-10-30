@@ -908,7 +908,7 @@ modifier ce qui suit.*
   - Le service worker lance l'analyse **si ce compte n'a pas de plan dans la période de
     marché en cours** (heure de Paris : avant 9 h, séance jusqu'à 17 h 40 les jours
     ouvrés, après la clôture), comme le cache des signaux en Python. Revenir sur la page
-    affiche donc le plan déjà calculé. Le bouton force toujours une nouvelle analyse.
+    affiche donc le plan déjà calculé. ~~Le bouton force toujours une nouvelle analyse.~~ (bouton retiré, DEC-33)
   - Une analyse à la fois. Un compte signalé pendant une analyse est mis en attente et
     traité ensuite : passer du PEA au CTO pendant l'analyse du PEA suffit.
   - Un échec n'est pas relancé en boucle : le compte n'est signalé qu'une fois par
@@ -971,3 +971,16 @@ modifier ce qui suit.*
     et l'ordre de priorité était rompu (une action plus chère que le montant par ligne,
     écartée, peut précéder un titre financé).
   - Ignorer le solde dans le plan lui-même : ce ne serait plus la stratégie backtestée.
+
+## DEC-33 — Extension : plus de bouton d'analyse manuelle
+
+- **Contexte** : depuis DEC-30, l'analyse se lance seule sur « Mes portefeuilles », une fois
+  par compte et par période de marché. Le bouton « Analyser cette page » ne servait plus
+  qu'à forcer un recalcul ; l'utilisateur le retire pour alléger la fenêtre.
+- **Décision** : bouton et message `analyze` du service worker supprimés. Un plan est
+  recalculé à la période de marché suivante ; après un échec ou une analyse interrompue, on
+  recharge la page Bourse Direct (le compte est de nouveau signalé).
+- **Écarté** : garder le bouton en lien discret. Un recalcul dans la même période donne le
+  même plan (signaux en cache, DEC-31) : peu utile.
+- **Conséquence** : la fenêtre ne fait plus qu'afficher. Même règle qu'avant : aucune
+  stratégie en JS (DEC-28).

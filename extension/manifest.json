@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Analyse boursière — rebalance",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "description": "Sur « Mes portefeuilles » de Bourse Direct, analyse le compte affiché et montre le plan d'ordres de la stratégie testée. Lecture seule : ne passe aucun ordre.",
   "permissions": ["activeTab", "nativeMessaging", "scripting", "storage"],
   "host_permissions": ["https://*.boursedirect.fr/*"],

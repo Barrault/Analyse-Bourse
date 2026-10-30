@@ -4,6 +4,16 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 identifiants (A1, S2…) renvoient à [docs/AUDIT.md](docs/AUDIT.md) et les choix sont
 justifiés dans [docs/DECISIONS.md](docs/DECISIONS.md).
 
+## [1.10.0] — 2026-10-28 — Nouveau style de l'extension
+
+### Modifié
+- Fenêtre de l'extension restylée dans l'esprit de Bourse Direct (bandeau bleu marine,
+  sections en cartes, variations colorées, signaux en pastilles, thème sombre).
+
+### Supprimé
+- Bouton « Analyser cette page » : l'analyse automatique (DEC-30) suffit ; recharger la
+  page après un échec (DEC-33).
+
 ## [1.9.0] — 2026-10-27 — Signaux ACHAT sans montant dans l'extension
 
 ### Modifié
